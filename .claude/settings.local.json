@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(python remove_all_mp3s_from_folders.py:*)",
+      "Bash(python organize_dataset.py:*)",
+      "Bash(tee:*)",
+      "Bash(python find_close_matches.py:*)",
+      "Bash(python add_manual_songs.py:*)",
+      "Bash(python verify_all_matched.py:*)",
+      "Bash(python add_close_matches.py:*)",
+      "Bash(python check_duplicates.py:*)",
+      "Bash(python find_missing_songs.py:*)",
+      "Bash(python download_lab_files.py:*)",
+      "Bash(python:*)",
+      "Bash(dir /s /b *.py)",
+      "Bash(dir:*)",
+      "WebFetch(domain:futuremirex.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

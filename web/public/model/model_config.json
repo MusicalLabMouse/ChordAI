@@ -1,0 +1,9 @@
+{
+  "model_type": "tcn",
+  "num_classes": 25,
+  "hidden_size": 256,
+  "sample_rate": 22050,
+  "hop_length": 2048,
+  "n_bins": 84,
+  "frame_duration_ms": 92.87981859410431
+}

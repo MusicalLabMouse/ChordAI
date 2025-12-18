@@ -1,0 +1,18 @@
+{
+  "name": "chord-detection-web",
+  "version": "1.0.0",
+  "description": "Real-time chord detection in the browser using CNN+TCN neural network",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.16.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0",
+    "vite-plugin-static-copy": "^3.1.4"
+  }
+}

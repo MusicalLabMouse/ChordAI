@@ -1,0 +1,141 @@
+LIKELY MATCHES FOR UNMATCHED SONGS
+================================================================================
+
+MP3 File: A Love Song - Live - Anne Murray.mp3
+Assigned song_id: 0917
+CSV Title: Love Song
+Artist: Anne Murray
+Similarity: 90.0%
+
+MP3 File: After The Love Is Gone - Earth, Wind & Fire.mp3
+Assigned song_id: 1056
+CSV Title: After The Love Has Gone
+Artist: Earth, Wind & Fire
+Similarity: 93.3%
+
+MP3 File: Big Yellow Taxi (2007) - Joni Mitchell.mp3
+Assigned song_id: 0668
+CSV Title: Big Yellow Taxi
+Artist: Joni Mitchell
+Similarity: 85.7%
+
+MP3 File: Chicago We Can Change the World - 2018 Remaster - Graham Nash.mp3
+Assigned song_id: 0248
+CSV Title: I'd Love To Change The World
+Artist: Ten Years After
+Similarity: 72.4%
+
+MP3 File: Crystal Blue Persuasions (Single Version) - Tommy James & The Shondells.mp3
+Assigned song_id: 0528
+CSV Title: Crystal Blue Persuasion
+Artist: Tommy James
+Similarity: 74.2%
+
+MP3 File: Doo Doo Doo Doo (Heartbreaker) - 2005 Digital Remaster - The Rolling Stones.mp3
+Assigned song_id: 0345
+CSV Title: Doo Doo Doo Doo Doo (Heartbreaker)
+Artist: The Rolling Stones
+Similarity: 93.3%
+
+MP3 File: El Condor Pasa (If I Could) - Daniel Alomía Robles, Simon & Garfunkel.mp3
+Assigned song_id: 1261
+CSV Title: El Condor Pasa
+Artist: Simon & Garfunkel
+Similarity: 71.8%
+
+MP3 File: Get Up I Feel Like Being Like A Sex Machine, Pts. 1 & 2 - James Brown, The Original J.B.s.mp3
+Assigned song_id: 0857
+CSV Title: Get Up (I Feel Like Being Like A) Sex Machine (Part 1)
+Artist: James Brown
+Similarity: 95.0%
+
+MP3 File: I Got You - 1964 Smash Version - James Brown.mp3
+Assigned song_id: 0914
+CSV Title: If Not You
+Artist: Dr. Hook
+Similarity: 84.2%
+
+MP3 File: I've Been Loving You Too Long - To Stop Now - Otis Redding.mp3
+Assigned song_id: 0502
+CSV Title: I've Been Loving You Too Long (To Stop Now)
+Artist: Otis Redding
+Similarity: 82.4%
+
+MP3 File: Indiana Wants Me (Rerecorded) - R. Dean Taylor.mp3
+Assigned song_id: 0030
+CSV Title: Indiana Wants Me
+Artist: R. Dean Taylor
+Similarity: 74.4%
+
+MP3 File: Living It Down ( [en espanol]) - Freddy Fender.mp3
+Assigned song_id: 0346
+CSV Title: Living It Down
+Artist: Freddy Fender
+Similarity: 71.8%
+
+MP3 File: Old Time Rock And Roll - Remastered 2011 - Bob Seger.mp3
+Assigned song_id: 0249
+CSV Title: Old Time Rock & Roll
+Artist: Bob Seger
+Similarity: 90.0%
+
+MP3 File: Reelin' And Rockin' - Chuck Berry.mp3
+Assigned song_id: 1110
+CSV Title: Reelin' & Rockin'
+Artist: Chuck Berry
+Similarity: 86.7%
+
+MP3 File: Running Up That Hill (A Deal With God) - 2018 Remaster - Kate Bush.mp3
+Assigned song_id: 0531
+CSV Title: Running Up That Hill
+Artist: Kate Bush
+Similarity: 71.4%
+
+MP3 File: Somebody's Watching Me - Single Version - Rockwell.mp3
+Assigned song_id: 0334
+CSV Title: Somebody s Watching Me
+Artist: Rockwell
+Similarity: 97.7%
+
+MP3 File: That's Old Fashioned (The Way Love Should Be) - The Everly Brothers.mp3
+Assigned song_id: 1248
+CSV Title: That's Old Fashioned (That's The Way Love Should Be)
+Artist: The Everly Brothers
+Similarity: 93.3%
+
+MP3 File: The Anaheim, Azusa And Cucamonga Sewing Circle, Book Review And Timing Association - Jan & Dean.mp3
+Assigned song_id: 0689
+CSV Title: The Anaheim, Azusa & Cucamonga Sewing Circle, Book Review And Timing Association
+Artist: Jan & Dean
+Similarity: 97.4%
+
+MP3 File: The Best of My Love - 2013 Remaster - Eagles.mp3
+Assigned song_id: 1061
+CSV Title: Best Of My Love
+Artist: Eagles
+Similarity: 88.2%
+
+MP3 File: The Sound of Silence - Electric Version - Simon & Garfunkel.mp3
+Assigned song_id: 1153
+CSV Title: The Sounds Of Silence
+Artist: Simon & Garfunkel
+Similarity: 97.6%
+
+MP3 File: Willie And The Hand Jive Get Ready - Live At Long Beach Arena, California 1974 - Eric Clapton.mp3
+Assigned song_id: 0194
+CSV Title: Willie And The Hand Jive
+Artist: Eric Clapton
+Similarity: 82.8%
+
+MP3 File: You Can't Judge A Book By Its Cover - Bo Diddley.mp3
+Assigned song_id: 0179
+CSV Title: You Can't Judge A Book By The Cover
+Artist: Bo Diddley
+Similarity: 94.1%
+
+MP3 File: You've Got Another Thing Coming - Judas Priest.mp3
+Assigned song_id: 0861
+CSV Title: You've Got Another Thing Comin'
+Artist: Judas Priest
+Similarity: 98.3%
+

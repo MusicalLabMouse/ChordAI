@@ -1,0 +1,1249 @@
+================================================================================
+DATASET ORGANIZATION REPORT
+================================================================================
+
+Total MP3 files found: 498
+Successfully matched: 471
+Unmatched: 27
+
+Songs in CSV: 716
+Folders created: 471
+Missing songs: 245
+
+================================================================================
+DUPLICATE SONG NAMES (Same song title, different artists)
+================================================================================
+
+--------------------------------------------------------------------------------
+Song: 25 Or 6 To 4
+--------------------------------------------------------------------------------
+
+MP3 File: 25 Or 6 To 4 - Chicago.mp3
+  Extracted Artist: Chicago
+  MATCHED TO => song_id=0176: Chicago
+
+  All candidates for this song:
+    [X] SELECTED song_id=0176: Chicago
+    [ ] song_id=0292: Chicago
+    [ ] song_id=1227: Chicago
+
+--------------------------------------------------------------------------------
+Song: Addicted To Love
+--------------------------------------------------------------------------------
+
+MP3 File: Addicted To Love - Remix - Robert Palmer, Eric 'ET' Thorngren.mp3
+  Extracted Artist: Remix - Robert Palmer, Eric 'ET' Thorngren
+  MATCHED TO => song_id=0271: Robert Palmer
+
+  All candidates for this song:
+    [X] SELECTED song_id=0271: Robert Palmer
+    [ ] song_id=0458: Robert Palmer
+
+--------------------------------------------------------------------------------
+Song: All She Wants Is
+--------------------------------------------------------------------------------
+
+MP3 File: All She Wants Is - Single Mix - Duran Duran.mp3
+  Extracted Artist: Single Mix - Duran Duran
+  MATCHED TO => song_id=0592: Duran Duran
+
+  All candidates for this song:
+    [X] SELECTED song_id=0592: Duran Duran
+    [ ] song_id=1226: Duran Duran
+
+--------------------------------------------------------------------------------
+Song: All Those Years Ago
+--------------------------------------------------------------------------------
+
+MP3 File: All Those Years Ago - George Harrison.mp3
+  Extracted Artist: George Harrison
+  MATCHED TO => song_id=0517: George Harrison
+
+  All candidates for this song:
+    [X] SELECTED song_id=0517: George Harrison
+    [ ] song_id=0680: George Harrison
+
+--------------------------------------------------------------------------------
+Song: All Through The Night
+--------------------------------------------------------------------------------
+
+MP3 File: All Through the Night - Cyndi Lauper.mp3
+  Extracted Artist: Cyndi Lauper
+  MATCHED TO => song_id=0309: Cyndi Lauper
+
+  All candidates for this song:
+    [X] SELECTED song_id=0309: Cyndi Lauper
+    [ ] song_id=0769: Cyndi Lauper
+    [ ] song_id=1084: Cyndi Lauper
+
+--------------------------------------------------------------------------------
+Song: Along Comes A Woman
+--------------------------------------------------------------------------------
+
+MP3 File: Along Comes a Woman - 2002 Remaster - Chicago.mp3
+  Extracted Artist: 2002- Chicago
+  MATCHED TO => song_id=0198: Chicago
+
+  All candidates for this song:
+    [X] SELECTED song_id=0198: Chicago
+    [ ] song_id=0574: Chicago
+    [ ] song_id=0776: Chicago
+
+--------------------------------------------------------------------------------
+Song: And She Was
+--------------------------------------------------------------------------------
+
+MP3 File: And She Was - Talking Heads.mp3
+  Extracted Artist: Talking Heads
+  MATCHED TO => song_id=0023: Talking Heads
+
+  All candidates for this song:
+    [X] SELECTED song_id=0023: Talking Heads
+    [ ] song_id=0870: Talking Heads
+
+--------------------------------------------------------------------------------
+Song: As Usual
+--------------------------------------------------------------------------------
+
+MP3 File: As Usual - Brenda Lee.mp3
+  Extracted Artist: Brenda Lee
+  MATCHED TO => song_id=0288: Brenda Lee
+
+  All candidates for this song:
+    [X] SELECTED song_id=0288: Brenda Lee
+    [ ] song_id=0471: Brenda Lee
+
+--------------------------------------------------------------------------------
+Song: Ask Me
+--------------------------------------------------------------------------------
+
+MP3 File: Ask Me - Elvis Presley.mp3
+  Extracted Artist: Elvis Presley
+  MATCHED TO => song_id=0658: Elvis Presley
+
+  All candidates for this song:
+    [X] SELECTED song_id=0658: Elvis Presley
+    [ ] song_id=0766: Elvis Presley
+
+--------------------------------------------------------------------------------
+Song: Baby What You Want Me To Do
+--------------------------------------------------------------------------------
+
+MP3 File: Baby What You Want Me to Do - Jimmy Reed.mp3
+  Extracted Artist: Jimmy Reed
+  MATCHED TO => song_id=1024: Jimmy Reed
+
+  All candidates for this song:
+    [X] SELECTED song_id=1024: Jimmy Reed
+    [ ] song_id=1263: Jimmy Reed
+
+--------------------------------------------------------------------------------
+Song: Back Home Again
+--------------------------------------------------------------------------------
+
+MP3 File: Back Home Again - John Denver.mp3
+  Extracted Artist: John Denver
+  MATCHED TO => song_id=0235: John Denver
+
+  All candidates for this song:
+    [X] SELECTED song_id=0235: John Denver
+    [ ] song_id=0446: John Denver
+
+--------------------------------------------------------------------------------
+Song: Because I Love You (The Postman Song)
+--------------------------------------------------------------------------------
+
+MP3 File: Because I Love You (The Postman Song) - Stevie B.mp3
+  Extracted Artist: Stevie B
+  MATCHED TO => song_id=0242: Stevie B
+
+  All candidates for this song:
+    [X] SELECTED song_id=0242: Stevie B
+    [ ] song_id=0782: Stevie B
+
+--------------------------------------------------------------------------------
+Song: Big Iron
+--------------------------------------------------------------------------------
+
+MP3 File: Big Iron - Marty Robbins.mp3
+  Extracted Artist: Marty Robbins
+  MATCHED TO => song_id=0814: Marty Robbins
+
+  All candidates for this song:
+    [X] SELECTED song_id=0814: Marty Robbins
+    [ ] song_id=1120: Marty Robbins
+
+--------------------------------------------------------------------------------
+Song: Bird Dog
+--------------------------------------------------------------------------------
+
+MP3 File: Bird Dog - The Everly Brothers.mp3
+  Extracted Artist: The Everly Brothers
+  MATCHED TO => song_id=0322: The Everly Brothers
+
+  All candidates for this song:
+    [X] SELECTED song_id=0322: The Everly Brothers
+    [ ] song_id=0733: The Everly Brothers
+
+--------------------------------------------------------------------------------
+Song: Boulevard
+--------------------------------------------------------------------------------
+
+MP3 File: Boulevard - Jackson Browne.mp3
+  Extracted Artist: Jackson Browne
+  MATCHED TO => song_id=0561: Jackson Browne
+
+  All candidates for this song:
+    [X] SELECTED song_id=0561: Jackson Browne
+    [ ] song_id=0695: Jackson Browne
+
+--------------------------------------------------------------------------------
+Song: Brandy (You're A Fine Girl)
+--------------------------------------------------------------------------------
+
+MP3 File: Brandy (You're A Fine Girl) - Looking Glass.mp3
+  Extracted Artist: Looking Glass
+  MATCHED TO => song_id=0128: Looking Glass
+
+  All candidates for this song:
+    [X] SELECTED song_id=0128: Looking Glass
+    [ ] song_id=0682: Looking Glass
+
+--------------------------------------------------------------------------------
+Song: California Nights
+--------------------------------------------------------------------------------
+
+MP3 File: California Nights - Lesley Gore.mp3
+  Extracted Artist: Lesley Gore
+  MATCHED TO => song_id=0813: Lesley Gore
+
+  All candidates for this song:
+    [X] SELECTED song_id=0813: Lesley Gore
+    [ ] song_id=0896: Lesley Gore
+
+--------------------------------------------------------------------------------
+Song: Carrie
+--------------------------------------------------------------------------------
+
+MP3 File: Carrie - 2001 Remaster - Cliff Richard.mp3
+  Extracted Artist: 2001- Cliff Richard
+  MATCHED TO => song_id=0051: Cliff Richard
+
+  All candidates for this song:
+    [X] SELECTED song_id=0051: Cliff Richard
+    [ ] song_id=1222: Cliff Richard
+
+--------------------------------------------------------------------------------
+Song: Cruisin'
+--------------------------------------------------------------------------------
+
+MP3 File: Cruisin' - Smokey Robinson.mp3
+  Extracted Artist: Smokey Robinson
+  MATCHED TO => song_id=0307: Smokey Robinson
+
+  All candidates for this song:
+    [X] SELECTED song_id=0307: Smokey Robinson
+    [ ] song_id=1133: Smokey Robinson
+    [ ] song_id=1162: Smokey Robinson
+
+--------------------------------------------------------------------------------
+Song: Dance Away
+--------------------------------------------------------------------------------
+
+MP3 File: Dance Away - Roxy Music.mp3
+  Extracted Artist: Roxy Music
+  MATCHED TO => song_id=0568: Roxy Music
+
+  All candidates for this song:
+    [X] SELECTED song_id=0568: Roxy Music
+    [ ] song_id=0846: Roxy Music
+
+--------------------------------------------------------------------------------
+Song: Daydream Believer
+--------------------------------------------------------------------------------
+
+MP3 File: Daydream Believer - Anne Murray.mp3
+  Extracted Artist: Anne Murray
+  MATCHED TO => song_id=0312: Anne Murray
+
+  All candidates for this song:
+    [X] SELECTED song_id=0312: Anne Murray
+    [ ] song_id=0475: Anne Murray
+
+--------------------------------------------------------------------------------
+Song: Dream Police
+--------------------------------------------------------------------------------
+
+MP3 File: Dream Police - Cheap Trick.mp3
+  Extracted Artist: Cheap Trick
+  MATCHED TO => song_id=0317: Cheap Trick
+
+  All candidates for this song:
+    [X] SELECTED song_id=0317: Cheap Trick
+    [ ] song_id=0323: Cheap Trick
+
+--------------------------------------------------------------------------------
+Song: Drivin' Wheel
+--------------------------------------------------------------------------------
+
+MP3 File: Drivin' Wheel - Single Version - Foghat.mp3
+  Extracted Artist: - Foghat
+  MATCHED TO => song_id=0075: Foghat
+
+  All candidates for this song:
+    [X] SELECTED song_id=0075: Foghat
+    [ ] song_id=0095: Foghat
+
+--------------------------------------------------------------------------------
+Song: Easy
+--------------------------------------------------------------------------------
+
+MP3 File: Easy - Commodores.mp3
+  Extracted Artist: Commodores
+  MATCHED TO => song_id=0341: Commodores
+
+  All candidates for this song:
+    [X] SELECTED song_id=0341: Commodores
+    [ ] song_id=1157: Commodores
+
+--------------------------------------------------------------------------------
+Song: Feel Like Makin' Love
+--------------------------------------------------------------------------------
+
+MP3 File: Feel Like Makin' Love - 2006 Remaster - Roberta Flack.mp3
+  Extracted Artist: 2006- Roberta Flack
+  MATCHED TO => song_id=0221: Roberta Flack
+
+  All candidates for this song:
+    [X] SELECTED song_id=0221: Roberta Flack
+    [ ] song_id=0454: Roberta Flack
+    [ ] song_id=0940: Roberta Flack
+
+--------------------------------------------------------------------------------
+Song: Feelin' Stronger Every Day
+--------------------------------------------------------------------------------
+
+MP3 File: Feelin' Stronger Every Day - Chicago.mp3
+  Extracted Artist: Chicago
+  MATCHED TO => song_id=0366: Chicago
+
+  All candidates for this song:
+    [X] SELECTED song_id=0366: Chicago
+    [ ] song_id=0684: Chicago
+
+--------------------------------------------------------------------------------
+Song: Fever
+--------------------------------------------------------------------------------
+
+MP3 File: Fever - Remastered 1998 - Peggy Lee.mp3
+  Extracted Artist: - Peggy Lee
+  MATCHED TO => song_id=0396: Peggy Lee
+
+  All candidates for this song:
+    [X] SELECTED song_id=0396: Peggy Lee
+    [ ] song_id=0692: Rita Coolidge
+
+MP3 File: Fever - Rita Coolidge.mp3
+  Extracted Artist: Rita Coolidge
+  MATCHED TO => song_id=0692: Rita Coolidge
+
+  All candidates for this song:
+    [ ] song_id=0396: Peggy Lee
+    [X] SELECTED song_id=0692: Rita Coolidge
+
+--------------------------------------------------------------------------------
+Song: Foggy Mountain Breakdown
+--------------------------------------------------------------------------------
+
+MP3 File: Foggy Mountain Breakdown - Flatt & Scruggs.mp3
+  Extracted Artist: Flatt & Scruggs
+  MATCHED TO => song_id=0037: Flatt & Scruggs
+
+  All candidates for this song:
+    [X] SELECTED song_id=0037: Flatt & Scruggs
+    [ ] song_id=0759: Flatt & Scruggs
+
+--------------------------------------------------------------------------------
+Song: Fool That I Am
+--------------------------------------------------------------------------------
+
+MP3 File: Fool That I Am - Etta James.mp3
+  Extracted Artist: Etta James
+  MATCHED TO => song_id=0515: Etta James
+
+  All candidates for this song:
+    [X] SELECTED song_id=0515: Etta James
+    [ ] song_id=0562: Etta James
+
+--------------------------------------------------------------------------------
+Song: For The Good Times
+--------------------------------------------------------------------------------
+
+MP3 File: For the Good Times - Ray Price.mp3
+  Extracted Artist: Ray Price
+  MATCHED TO => song_id=0102: Ray Price
+
+  All candidates for this song:
+    [X] SELECTED song_id=0102: Ray Price
+    [ ] song_id=0725: Ray Price
+
+--------------------------------------------------------------------------------
+Song: Get Together
+--------------------------------------------------------------------------------
+
+MP3 File: Get Together - The Youngbloods.mp3
+  Extracted Artist: The Youngbloods
+  MATCHED TO => song_id=0072: The Youngbloods
+
+  All candidates for this song:
+    [X] SELECTED song_id=0072: The Youngbloods
+    [ ] song_id=1136: The Youngbloods
+
+--------------------------------------------------------------------------------
+Song: Good Vibrations
+--------------------------------------------------------------------------------
+
+MP3 File: Good Vibrations - Marky Mark And The Funky Bunch, Loleatta Holloway.mp3
+  Extracted Artist: Marky Mark And The Funky Bunch, Loleatta Holloway
+  MATCHED TO => song_id=0352: Marky Mark
+
+  All candidates for this song:
+    [X] SELECTED song_id=0352: Marky Mark
+    [ ] song_id=0503: Marky Mark
+
+--------------------------------------------------------------------------------
+Song: Heartbreaker
+--------------------------------------------------------------------------------
+
+MP3 File: Heartbreaker - Remastered - Pat Benatar.mp3
+  Extracted Artist: - Pat Benatar
+  MATCHED TO => song_id=1053: Pat Benatar
+
+  All candidates for this song:
+    [X] SELECTED song_id=1053: Pat Benatar
+    [ ] song_id=1204: Pat Benatar
+
+--------------------------------------------------------------------------------
+Song: Help Is On Its Way
+--------------------------------------------------------------------------------
+
+MP3 File: Help Is On Its Way - Little River Band.mp3
+  Extracted Artist: Little River Band
+  MATCHED TO => song_id=0187: Little River Band
+
+  All candidates for this song:
+    [X] SELECTED song_id=0187: Little River Band
+    [ ] song_id=0721: Little River Band
+
+--------------------------------------------------------------------------------
+Song: Hold On
+--------------------------------------------------------------------------------
+
+MP3 File: Hold On - Single Edit - Wilson Phillips.mp3
+  Extracted Artist: Single Edit - Wilson Phillips
+  MATCHED TO => song_id=0385: Wilson Phillips
+
+  All candidates for this song:
+    [X] SELECTED song_id=0385: Wilson Phillips
+    [ ] song_id=0628: Wilson Phillips
+    [ ] song_id=0911: Wilson Phillips
+
+--------------------------------------------------------------------------------
+Song: Honky Tonk Women
+--------------------------------------------------------------------------------
+
+MP3 File: Honky Tonk Women - Mono Version - The Rolling Stones.mp3
+  Extracted Artist: - The Rolling Stones
+  MATCHED TO => song_id=0229: The Rolling Stones
+
+  All candidates for this song:
+    [X] SELECTED song_id=0229: The Rolling Stones
+    [ ] song_id=1266: The Rolling Stones
+
+--------------------------------------------------------------------------------
+Song: I Can Help
+--------------------------------------------------------------------------------
+
+MP3 File: I Can Help - Billy Swan.mp3
+  Extracted Artist: Billy Swan
+  MATCHED TO => song_id=0601: Billy Swan
+
+  All candidates for this song:
+    [X] SELECTED song_id=0601: Billy Swan
+    [ ] song_id=1093: Billy Swan
+
+--------------------------------------------------------------------------------
+Song: I Cried A Tear
+--------------------------------------------------------------------------------
+
+MP3 File: I Cried a Tear - LaVern Baker.mp3
+  Extracted Artist: LaVern Baker
+  MATCHED TO => song_id=0822: LaVern Baker
+
+  All candidates for this song:
+    [X] SELECTED song_id=0822: LaVern Baker
+    [ ] song_id=0954: LaVern Baker
+    [ ] song_id=1166: LaVern Baker
+
+--------------------------------------------------------------------------------
+Song: I Really Don't Want To Know
+--------------------------------------------------------------------------------
+
+MP3 File: I Really Don't Want To Know - Elvis Presley.mp3
+  Extracted Artist: Elvis Presley
+  MATCHED TO => song_id=0386: Elvis Presley
+
+  All candidates for this song:
+    [X] SELECTED song_id=0386: Elvis Presley
+    [ ] song_id=0444: Elvis Presley
+
+--------------------------------------------------------------------------------
+Song: I Want To Take You Higher
+--------------------------------------------------------------------------------
+
+MP3 File: I Want To Take You Higher - Ike & Tina Turner.mp3
+  Extracted Artist: Ike & Tina Turner
+  MATCHED TO => song_id=0204: Ike & Tina Turner
+
+  All candidates for this song:
+    [X] SELECTED song_id=0204: Ike & Tina Turner
+    [ ] song_id=0360: Ike & Tina Turner
+    [ ] song_id=0614: Sly & The Family Stone
+    [ ] song_id=0996: Ike & Tina Turner
+
+MP3 File: I Want To Take You Higher - Sly & The Family Stone.mp3
+  Extracted Artist: Sly & The Family Stone
+  MATCHED TO => song_id=0614: Sly & The Family Stone
+
+  All candidates for this song:
+    [ ] song_id=0204: Ike & Tina Turner
+    [ ] song_id=0360: Ike & Tina Turner
+    [X] SELECTED song_id=0614: Sly & The Family Stone
+    [ ] song_id=0996: Ike & Tina Turner
+
+--------------------------------------------------------------------------------
+Song: I Want You
+--------------------------------------------------------------------------------
+
+MP3 File: I Want You - Marvin Gaye.mp3
+  Extracted Artist: Marvin Gaye
+  MATCHED TO => song_id=0319: Marvin Gaye
+
+  All candidates for this song:
+    [X] SELECTED song_id=0319: Marvin Gaye
+    [ ] song_id=0795: Marvin Gaye
+
+--------------------------------------------------------------------------------
+Song: I'd Love To Change The World
+--------------------------------------------------------------------------------
+
+MP3 File: I'd Love To Change The World - Ten Years After.mp3
+  Extracted Artist: Ten Years After
+  MATCHED TO => song_id=0248: Ten Years After
+
+  All candidates for this song:
+    [X] SELECTED song_id=0248: Ten Years After
+    [ ] song_id=0751: Ten Years After
+
+--------------------------------------------------------------------------------
+Song: If
+--------------------------------------------------------------------------------
+
+MP3 File: If - Bread.mp3
+  Extracted Artist: Bread
+  MATCHED TO => song_id=0106: Bread
+
+  All candidates for this song:
+    [X] SELECTED song_id=0106: Bread
+    [ ] song_id=0988: Bread
+
+--------------------------------------------------------------------------------
+Song: In Your Soul
+--------------------------------------------------------------------------------
+
+MP3 File: In Your Soul - Corey Hart.mp3
+  Extracted Artist: Corey Hart
+  MATCHED TO => song_id=0469: Corey Hart
+
+  All candidates for this song:
+    [X] SELECTED song_id=0469: Corey Hart
+    [ ] song_id=0657: Corey Hart
+
+--------------------------------------------------------------------------------
+Song: It Takes Two
+--------------------------------------------------------------------------------
+
+MP3 File: It Takes Two - Marvin Gaye, Kim Weston.mp3
+  Extracted Artist: Marvin Gaye, Kim Weston
+  MATCHED TO => song_id=0280: Marvin Gaye,Kim Weston
+
+  All candidates for this song:
+    [X] SELECTED song_id=0280: Marvin Gaye,Kim Weston
+    [ ] song_id=1109: Rob Base
+
+MP3 File: It Takes Two - Rob Base & DJ EZ Rock.mp3
+  Extracted Artist: Rob Base & DJ EZ Rock
+  MATCHED TO => song_id=1109: Rob Base
+
+  All candidates for this song:
+    [ ] song_id=0280: Marvin Gaye,Kim Weston
+    [X] SELECTED song_id=1109: Rob Base
+
+--------------------------------------------------------------------------------
+Song: Judy
+--------------------------------------------------------------------------------
+
+MP3 File: Judy - Elvis Presley.mp3
+  Extracted Artist: Elvis Presley
+  MATCHED TO => song_id=0565: Elvis Presley
+
+  All candidates for this song:
+    [X] SELECTED song_id=0565: Elvis Presley
+    [ ] song_id=0923: Elvis Presley
+
+--------------------------------------------------------------------------------
+Song: Jump (for My Love)
+--------------------------------------------------------------------------------
+
+MP3 File: Jump (For My Love) - Single Remix - The Pointer Sisters.mp3
+  Extracted Artist: Single Remix - The Pointer Sisters
+  MATCHED TO => song_id=0448: The Pointer Sisters
+
+  All candidates for this song:
+    [X] SELECTED song_id=0448: The Pointer Sisters
+    [ ] song_id=0850: The Pointer Sisters
+
+--------------------------------------------------------------------------------
+Song: Just The Way You Are
+--------------------------------------------------------------------------------
+
+MP3 File: Just the Way You Are - Billy Joel.mp3
+  Extracted Artist: Billy Joel
+  MATCHED TO => song_id=0240: Billy Joel
+
+  All candidates for this song:
+    [X] SELECTED song_id=0240: Billy Joel
+    [ ] song_id=0295: Billy Joel
+
+--------------------------------------------------------------------------------
+Song: Kisses On The Wind
+--------------------------------------------------------------------------------
+
+MP3 File: Kisses On The Wind - Neneh Cherry.mp3
+  Extracted Artist: Neneh Cherry
+  MATCHED TO => song_id=0370: Neneh Cherry
+
+  All candidates for this song:
+    [X] SELECTED song_id=0370: Neneh Cherry
+    [ ] song_id=0909: Neneh Cherry
+
+--------------------------------------------------------------------------------
+Song: Last Dance
+--------------------------------------------------------------------------------
+
+MP3 File: Last Dance - Single Version - Donna Summer.mp3
+  Extracted Artist: - Donna Summer
+  MATCHED TO => song_id=0501: Donna Summer
+
+  All candidates for this song:
+    [X] SELECTED song_id=0501: Donna Summer
+    [ ] song_id=1217: Donna Summer
+    [ ] song_id=1242: Donna Summer
+
+--------------------------------------------------------------------------------
+Song: Lonely Weekends
+--------------------------------------------------------------------------------
+
+MP3 File: Lonely Weekends - Charlie Rich.mp3
+  Extracted Artist: Charlie Rich
+  MATCHED TO => song_id=1113: Charlie Rich
+
+  All candidates for this song:
+    [X] SELECTED song_id=1113: Charlie Rich
+    [ ] song_id=1123: Charlie Rich
+
+--------------------------------------------------------------------------------
+Song: Looking For A Love
+--------------------------------------------------------------------------------
+
+MP3 File: Looking for a Love - The J. Geils Band.mp3
+  Extracted Artist: The J. Geils Band
+  MATCHED TO => song_id=0662: The J. Geils Band
+
+  All candidates for this song:
+    [X] SELECTED song_id=0662: The J. Geils Band
+    [ ] song_id=0664: The J. Geils Band
+
+--------------------------------------------------------------------------------
+Song: Love Came To Me
+--------------------------------------------------------------------------------
+
+MP3 File: Love Came To Me - Dion.mp3
+  Extracted Artist: Dion
+  MATCHED TO => song_id=0253: Dion
+
+  All candidates for this song:
+    [X] SELECTED song_id=0253: Dion
+    [ ] song_id=1152: Dion
+
+--------------------------------------------------------------------------------
+Song: Magic Man
+--------------------------------------------------------------------------------
+
+MP3 File: Magic Man - Heart.mp3
+  Extracted Artist: Heart
+  MATCHED TO => song_id=0215: Heart
+
+  All candidates for this song:
+    [X] SELECTED song_id=0215: Heart
+    [ ] song_id=0800: Heart
+
+--------------------------------------------------------------------------------
+Song: (Marie's the Name) His Latest Flame
+--------------------------------------------------------------------------------
+
+MP3 File: (Marie's the Name) His Latest Flame - Elvis Presley.mp3
+  Extracted Artist: Elvis Presley
+  MATCHED TO => song_id=0617: Elvis Presley
+
+  All candidates for this song:
+    [X] SELECTED song_id=0617: Elvis Presley
+    [ ] song_id=0730: Elvis Presley
+
+--------------------------------------------------------------------------------
+Song: Never Can Say Goodbye
+--------------------------------------------------------------------------------
+
+MP3 File: Never Can Say Goodbye - Gloria Gaynor.mp3
+  Extracted Artist: Gloria Gaynor
+  MATCHED TO => song_id=0190: Gloria Gaynor
+
+  All candidates for this song:
+    [X] SELECTED song_id=0190: Gloria Gaynor
+    [ ] song_id=1068: Gloria Gaynor
+
+--------------------------------------------------------------------------------
+Song: On Broadway
+--------------------------------------------------------------------------------
+
+MP3 File: On Broadway - Single Version; Remastered - The Drifters.mp3
+  Extracted Artist: ;- The Drifters
+  MATCHED TO => song_id=0461: The Drifters
+
+  All candidates for this song:
+    [X] SELECTED song_id=0461: The Drifters
+    [ ] song_id=0781: The Drifters
+
+--------------------------------------------------------------------------------
+Song: Over The Hills And Far Away
+--------------------------------------------------------------------------------
+
+MP3 File: Over the Hills and Far Away - Live 1972; Remaster - Led Zeppelin.mp3
+  Extracted Artist: 
+  MATCHED TO => song_id=0053: Led Zeppelin
+
+  All candidates for this song:
+    [X] SELECTED song_id=0053: Led Zeppelin
+    [ ] song_id=1025: Led Zeppelin
+
+--------------------------------------------------------------------------------
+Song: Private Dancer
+--------------------------------------------------------------------------------
+
+MP3 File: Private Dancer - 2015 Remaster - Tina Turner.mp3
+  Extracted Artist: 2015- Tina Turner
+  MATCHED TO => song_id=0524: Tina Turner
+
+  All candidates for this song:
+    [X] SELECTED song_id=0524: Tina Turner
+    [ ] song_id=1098: Tina Turner
+    [ ] song_id=1183: Tina Turner
+
+--------------------------------------------------------------------------------
+Song: Promises In The Dark
+--------------------------------------------------------------------------------
+
+MP3 File: Promises In The Dark - Pat Benatar.mp3
+  Extracted Artist: Pat Benatar
+  MATCHED TO => song_id=0227: Pat Benatar
+
+  All candidates for this song:
+    [X] SELECTED song_id=0227: Pat Benatar
+    [ ] song_id=0275: Pat Benatar
+
+--------------------------------------------------------------------------------
+Song: Shadow Dancing
+--------------------------------------------------------------------------------
+
+MP3 File: Shadow Dancing - Andy Gibb.mp3
+  Extracted Artist: Andy Gibb
+  MATCHED TO => song_id=0193: Andy Gibb
+
+  All candidates for this song:
+    [X] SELECTED song_id=0193: Andy Gibb
+    [ ] song_id=0737: Andy Gibb
+
+--------------------------------------------------------------------------------
+Song: She Bop
+--------------------------------------------------------------------------------
+
+MP3 File: She Bop - Cyndi Lauper.mp3
+  Extracted Artist: Cyndi Lauper
+  MATCHED TO => song_id=0016: Cyndi Lauper
+
+  All candidates for this song:
+    [X] SELECTED song_id=0016: Cyndi Lauper
+    [ ] song_id=1274: Cyndi Lauper
+
+--------------------------------------------------------------------------------
+Song: Smokin' In The Boy's Room
+--------------------------------------------------------------------------------
+
+MP3 File: Smokin' In the Boy's Room - Brownsville Station.mp3
+  Extracted Artist: Brownsville Station
+  MATCHED TO => song_id=0256: Brownsville Station
+
+  All candidates for this song:
+    [X] SELECTED song_id=0256: Brownsville Station
+    [ ] song_id=0755: Brownsville Station
+
+--------------------------------------------------------------------------------
+Song: Smoking Gun
+--------------------------------------------------------------------------------
+
+MP3 File: Smoking Gun - Robert Cray.mp3
+  Extracted Artist: Robert Cray
+  MATCHED TO => song_id=0055: The Robert Cray Band
+
+  All candidates for this song:
+    [X] SELECTED song_id=0055: The Robert Cray Band
+    [ ] song_id=0329: The Robert Cray Band
+
+--------------------------------------------------------------------------------
+Song: Something About You
+--------------------------------------------------------------------------------
+
+MP3 File: Something About You - Level 42.mp3
+  Extracted Artist: Level 42
+  MATCHED TO => song_id=0158: Level 42
+
+  All candidates for this song:
+    [X] SELECTED song_id=0158: Level 42
+    [ ] song_id=1237: Level 42
+
+--------------------------------------------------------------------------------
+Song: Superman
+--------------------------------------------------------------------------------
+
+MP3 File: Superman - Donna Fargo.mp3
+  Extracted Artist: Donna Fargo
+  MATCHED TO => song_id=0358: Donna Fargo
+
+  All candidates for this song:
+    [X] SELECTED song_id=0358: Donna Fargo
+    [ ] song_id=0874: Donna Fargo
+
+--------------------------------------------------------------------------------
+Song: Surrender
+--------------------------------------------------------------------------------
+
+MP3 File: Surrender - Cheap Trick.mp3
+  Extracted Artist: Cheap Trick
+  MATCHED TO => song_id=0555: Cheap Trick
+
+  All candidates for this song:
+    [X] SELECTED song_id=0555: Cheap Trick
+    [ ] song_id=1022: Cheap Trick
+
+--------------------------------------------------------------------------------
+Song: That Girl
+--------------------------------------------------------------------------------
+
+MP3 File: That Girl - Stevie Wonder.mp3
+  Extracted Artist: Stevie Wonder
+  MATCHED TO => song_id=0683: Stevie Wonder
+
+  All candidates for this song:
+    [X] SELECTED song_id=0683: Stevie Wonder
+    [ ] song_id=0768: Stevie Wonder
+
+--------------------------------------------------------------------------------
+Song: The Battle Of New Orleans
+--------------------------------------------------------------------------------
+
+MP3 File: The Battle Of New Orleans - Johnny Horton.mp3
+  Extracted Artist: Johnny Horton
+  MATCHED TO => song_id=0500: Johnny Horton
+
+  All candidates for this song:
+    [X] SELECTED song_id=0500: Johnny Horton
+    [ ] song_id=0873: Johnny Horton
+
+--------------------------------------------------------------------------------
+Song: The Humpty Dance
+--------------------------------------------------------------------------------
+
+MP3 File: The Humpty Dance - Digital Underground.mp3
+  Extracted Artist: Digital Underground
+  MATCHED TO => song_id=0304: Digital Underground
+
+  All candidates for this song:
+    [X] SELECTED song_id=0304: Digital Underground
+    [ ] song_id=0378: Digital Underground
+    [ ] song_id=0521: Digital Underground
+
+--------------------------------------------------------------------------------
+Song: The Joker
+--------------------------------------------------------------------------------
+
+MP3 File: The Joker - Steve Miller Band.mp3
+  Extracted Artist: Steve Miller Band
+  MATCHED TO => song_id=0029: Steve Miller Band
+
+  All candidates for this song:
+    [X] SELECTED song_id=0029: Steve Miller Band
+    [ ] song_id=0504: Steve Miller Band
+
+--------------------------------------------------------------------------------
+Song: The Rose
+--------------------------------------------------------------------------------
+
+MP3 File: The Rose - Bette Midler.mp3
+  Extracted Artist: Bette Midler
+  MATCHED TO => song_id=0006: Bette Midler
+
+  All candidates for this song:
+    [X] SELECTED song_id=0006: Bette Midler
+    [ ] song_id=1271: Bette Midler
+
+--------------------------------------------------------------------------------
+Song: The Twist
+--------------------------------------------------------------------------------
+
+MP3 File: The Twist - Re-Recorded Version - Chubby Checker.mp3
+  Extracted Artist: Re-Recorded Version - Chubby Checker
+  MATCHED TO => song_id=0948: Chubby Checker
+
+  All candidates for this song:
+    [X] SELECTED song_id=0948: Chubby Checker
+    [ ] song_id=1103: Chubby Checker
+
+--------------------------------------------------------------------------------
+Song: The Way You Do The Things You Do
+--------------------------------------------------------------------------------
+
+MP3 File: The Way You Do The Things You Do - Rita Coolidge.mp3
+  Extracted Artist: Rita Coolidge
+  MATCHED TO => song_id=0291: Rita Coolidge
+
+  All candidates for this song:
+    [ ] song_id=0139: UB40
+    [X] SELECTED song_id=0291: Rita Coolidge
+    [ ] song_id=0885: UB40
+
+MP3 File: The Way You Do The Things You Do - UB40.mp3
+  Extracted Artist: UB40
+  MATCHED TO => song_id=0139: UB40
+
+  All candidates for this song:
+    [X] SELECTED song_id=0139: UB40
+    [ ] song_id=0291: Rita Coolidge
+    [ ] song_id=0885: UB40
+
+--------------------------------------------------------------------------------
+Song: Through The Years
+--------------------------------------------------------------------------------
+
+MP3 File: Through The Years - Kenny Rogers.mp3
+  Extracted Artist: Kenny Rogers
+  MATCHED TO => song_id=0338: Kenny Rogers
+
+  All candidates for this song:
+    [X] SELECTED song_id=0338: Kenny Rogers
+    [ ] song_id=0832: Kenny Rogers
+
+--------------------------------------------------------------------------------
+Song: Time For Me To Fly
+--------------------------------------------------------------------------------
+
+MP3 File: Time for Me to Fly - Live at Riverport Amphitheatre, St. Louis, Missouri, USA - June 9th 2000 - REO Speedwagon.mp3
+  Extracted Artist: 
+  MATCHED TO => song_id=0268: REO Speedwagon
+
+  All candidates for this song:
+    [X] SELECTED song_id=0268: REO Speedwagon
+    [ ] song_id=0910: REO Speedwagon
+
+--------------------------------------------------------------------------------
+Song: Time Is On My Side
+--------------------------------------------------------------------------------
+
+MP3 File: Time Is On My Side - Mono Version - The Rolling Stones.mp3
+  Extracted Artist: - The Rolling Stones
+  MATCHED TO => song_id=0387: The Rolling Stones
+
+  All candidates for this song:
+    [X] SELECTED song_id=0387: The Rolling Stones
+    [ ] song_id=0597: The Rolling Stones
+    [ ] song_id=0780: The Rolling Stones
+
+--------------------------------------------------------------------------------
+Song: Too Weak To Fight
+--------------------------------------------------------------------------------
+
+MP3 File: Too Weak to Fight - Clarence Carter.mp3
+  Extracted Artist: Clarence Carter
+  MATCHED TO => song_id=0585: Clarence Carter
+
+  All candidates for this song:
+    [X] SELECTED song_id=0585: Clarence Carter
+    [ ] song_id=0765: Clarence Carter
+
+--------------------------------------------------------------------------------
+Song: Waiting On A Friend
+--------------------------------------------------------------------------------
+
+MP3 File: Waiting On A Friend - The Rolling Stones.mp3
+  Extracted Artist: The Rolling Stones
+  MATCHED TO => song_id=0278: The Rolling Stones
+
+  All candidates for this song:
+    [X] SELECTED song_id=0278: The Rolling Stones
+    [ ] song_id=0332: The Rolling Stones
+
+--------------------------------------------------------------------------------
+Song: When Will I Be Loved
+--------------------------------------------------------------------------------
+
+MP3 File: When Will I Be Loved - Linda Ronstadt.mp3
+  Extracted Artist: Linda Ronstadt
+  MATCHED TO => song_id=0324: Linda Ronstadt
+
+  All candidates for this song:
+    [X] SELECTED song_id=0324: Linda Ronstadt
+    [ ] song_id=0839: Linda Ronstadt
+
+--------------------------------------------------------------------------------
+Song: Where Are You
+--------------------------------------------------------------------------------
+
+MP3 File: Where Are You - Dinah Washington.mp3
+  Extracted Artist: Dinah Washington
+  MATCHED TO => song_id=0722: Dinah Washington
+
+  All candidates for this song:
+    [X] SELECTED song_id=0722: Dinah Washington
+    [ ] song_id=1099: Dinah Washington
+
+--------------------------------------------------------------------------------
+Song: Where Or When
+--------------------------------------------------------------------------------
+
+MP3 File: Where Or When - Dion & The Belmonts.mp3
+  Extracted Artist: Dion & The Belmonts
+  MATCHED TO => song_id=0434: Dion
+
+  All candidates for this song:
+    [X] SELECTED song_id=0434: Dion
+    [ ] song_id=0816: Dion
+
+--------------------------------------------------------------------------------
+Song: White Wedding
+--------------------------------------------------------------------------------
+
+MP3 File: White Wedding - Pt. 1 Remastered 2002 - Billy Idol.mp3
+  Extracted Artist: Pt. 1 - Billy Idol
+  MATCHED TO => song_id=0701: Billy Idol
+
+  All candidates for this song:
+    [X] SELECTED song_id=0701: Billy Idol
+    [ ] song_id=1296: Billy Idol
+
+--------------------------------------------------------------------------------
+Song: World In My Eyes
+--------------------------------------------------------------------------------
+
+MP3 File: World in My Eyes - Single Version - Depeche Mode, Francois Kevorkian.mp3
+  Extracted Artist: - Depeche Mode, Francois Kevorkian
+  MATCHED TO => song_id=0442: Depeche Mode
+
+  All candidates for this song:
+    [X] SELECTED song_id=0442: Depeche Mode
+    [ ] song_id=0757: Depeche Mode
+
+--------------------------------------------------------------------------------
+Song: You Can Call Me Al
+--------------------------------------------------------------------------------
+
+MP3 File: You Can Call Me Al - Paul Simon.mp3
+  Extracted Artist: Paul Simon
+  MATCHED TO => song_id=0081: Paul Simon
+
+  All candidates for this song:
+    [X] SELECTED song_id=0081: Paul Simon
+    [ ] song_id=0833: Paul Simon
+
+--------------------------------------------------------------------------------
+Song: You Can't Roller Skate In A Buffalo Herd
+--------------------------------------------------------------------------------
+
+MP3 File: You Can't Roller Skate In A Buffalo Herd - Single Version - Roger Miller.mp3
+  Extracted Artist: - Roger Miller
+  MATCHED TO => song_id=0308: Roger Miller
+
+  All candidates for this song:
+    [X] SELECTED song_id=0308: Roger Miller
+    [ ] song_id=0669: Roger Miller
+
+--------------------------------------------------------------------------------
+Song: Young Hearts Run Free
+--------------------------------------------------------------------------------
+
+MP3 File: Young Hearts Run Free - Rerecorded - Candi Staton.mp3
+  Extracted Artist: Rerecorded - Candi Staton
+  MATCHED TO => song_id=0390: Candi Staton
+
+  All candidates for this song:
+    [X] SELECTED song_id=0390: Candi Staton
+    [ ] song_id=0522: Candi Staton
+
+================================================================================
+UNMATCHED FILES (Not found in CSV)
+================================================================================
+
+  A Love Song - Live - Anne Murray.mp3
+    Song: A Love Song
+    Artist: 
+
+  After The Love Is Gone - Earth, Wind & Fire.mp3
+    Song: After The Love Is Gone
+    Artist: Earth, Wind & Fire
+
+  Big Yellow Taxi (2007) - Joni Mitchell.mp3
+    Song: Big Yellow Taxi (2007)
+    Artist: Joni Mitchell
+
+  Chicago We Can Change the World - 2018 Remaster - Graham Nash.mp3
+    Song: Chicago We Can Change the World
+    Artist: 2018- Graham Nash
+
+  Crystal Blue Persuasions (Single Version) - Tommy James & The Shondells.mp3
+    Song: Crystal Blue Persuasions (Single Version)
+    Artist: Tommy James & The Shondells
+
+  Doo Doo Doo Doo (Heartbreaker) - 2005 Digital Remaster - The Rolling Stones.mp3
+    Song: Doo Doo Doo Doo (Heartbreaker)
+    Artist: 2005 Digital- The Rolling Stones
+
+  El Condor Pasa (If I Could) - Daniel Alomía Robles, Simon & Garfunkel.mp3
+    Song: El Condor Pasa (If I Could)
+    Artist: Daniel Alomía Robles, Simon & Garfunkel
+
+  Get Up I Feel Like Being Like A Sex Machine, Pts. 1 & 2 - James Brown, The Original J.B.s.mp3
+    Song: Get Up I Feel Like Being Like A Sex Machine, Pts. 1 & 2
+    Artist: James Brown, The Original J.B.s
+
+  I Got You - 1964 Smash Version - James Brown.mp3
+    Song: I Got You
+    Artist: 1964 Smash Version - James Brown
+
+  I've Been Loving You Too Long - To Stop Now - Otis Redding.mp3
+    Song: I've Been Loving You Too Long
+    Artist: To Stop Now - Otis Redding
+
+  Indiana Wants Me (Rerecorded) - R. Dean Taylor.mp3
+    Song: Indiana Wants Me (Rerecorded)
+    Artist: R. Dean Taylor
+
+  Kicks (feat. Mark Lindsay) - Single Version - Paul Revere & The Raiders, Mark Lindsay.mp3
+    Song: Kicks (feat. Mark Lindsay)
+    Artist: - Paul Revere & The Raiders, Mark Lindsay
+
+  Living It Down ( [en espanol]) - Freddy Fender.mp3
+    Song: Living It Down ( [en espanol])
+    Artist: Freddy Fender
+
+  Make Me Smile Now More Than Ever - 2002 Remaster - Chicago.mp3
+    Song: Make Me Smile Now More Than Ever
+    Artist: 2002- Chicago
+
+  Old Time Rock And Roll - Remastered 2011 - Bob Seger.mp3
+    Song: Old Time Rock And Roll
+    Artist: - Bob Seger
+
+  Reelin' And Rockin' - Chuck Berry.mp3
+    Song: Reelin' And Rockin'
+    Artist: Chuck Berry
+
+  Running Up That Hill (A Deal With God) - 2018 Remaster - Kate Bush.mp3
+    Song: Running Up That Hill (A Deal With God)
+    Artist: 2018- Kate Bush
+
+  Somebody's Watching Me - Single Version - Rockwell.mp3
+    Song: Somebody's Watching Me
+    Artist: - Rockwell
+
+  That's Old Fashioned (The Way Love Should Be) - The Everly Brothers.mp3
+    Song: That's Old Fashioned (The Way Love Should Be)
+    Artist: The Everly Brothers
+
+  The Anaheim, Azusa And Cucamonga Sewing Circle, Book Review And Timing Association - Jan & Dean.mp3
+    Song: The Anaheim, Azusa And Cucamonga Sewing Circle, Book Review And Timing Association
+    Artist: Jan & Dean
+
+  The Best of My Love - 2013 Remaster - Eagles.mp3
+    Song: The Best of My Love
+    Artist: 2013- Eagles
+
+  The Sound of Silence - Electric Version - Simon & Garfunkel.mp3
+    Song: The Sound of Silence
+    Artist: Electric Version - Simon & Garfunkel
+
+  Walk Like A Man (You Can Call Me Your Man) - Remastered 1999 - Grand Funk Railroad.mp3
+    Song: Walk Like A Man (You Can Call Me Your Man)
+    Artist: - Grand Funk Railroad
+
+  Wendy (Stereo) - The Beach Boys.mp3
+    Song: Wendy (Stereo)
+    Artist: The Beach Boys
+
+  Willie And The Hand Jive Get Ready - Live At Long Beach Arena, California 1974 - Eric Clapton.mp3
+    Song: Willie And The Hand Jive Get Ready
+    Artist: 
+
+  You Can't Judge A Book By Its Cover - Bo Diddley.mp3
+    Song: You Can't Judge A Book By Its Cover
+    Artist: Bo Diddley
+
+  You've Got Another Thing Coming - Judas Priest.mp3
+    Song: You've Got Another Thing Coming
+    Artist: Judas Priest
+
+================================================================================
+MISSING SONGS (In CSV but no MP3 found) - 245 songs
+================================================================================
+  song_id=0025: Chicago - Graham Nash
+  song_id=0030: Indiana Wants Me - R. Dean Taylor
+  song_id=0034: If I Can't Have You - Yvonne Elliman
+  song_id=0043: Two Hearts - Phil Collins
+  song_id=0062: Hurts To Be In Love - Gino Vannelli
+  song_id=0066: Do You Love Me - The Contours
+  song_id=0068: Black Cars - Gino Vannelli
+  song_id=0071: Paradise By The Dashboard Light - Meat Loaf
+  song_id=0074: Nowhere To Run - Martha & The Vandellas
+  song_id=0086: Space Oddity - David Bowie
+  song_id=0092: Shock The Monkey - Peter Gabriel
+  song_id=0095: Drivin' Wheel - Foghat
+  song_id=0100: Maggie May - Rod Stewart
+  song_id=0104: We Two - Little River Band
+  song_id=0112: Letter Full Of Tears - Gladys Knight & The Pips
+  song_id=0120: Be My Baby - The Ronettes
+  song_id=0124: Promises - Eric Clapton
+  song_id=0134: I Had Too Much To Dream (Last Night) - The Electric Prunes
+  song_id=0141: Shock The Monkey - Peter Gabriel
+  song_id=0148: Spirits In The Material World - The Police
+  ... and 225 more
+
+================================================================================
+END OF REPORT
+================================================================================

@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Model files and data (too large for git)
+checkpoints/
+checkpoints_old/
+checkpoints_old2/
+features/
+*.pth
+*.onnx
+*.pt
+
+# Training data (too large)
+training_datasets/
+McGill-Billboard/
+songs/
+
+# Web build artifacts
+web/dist/
+web/node_modules/
+
+# Misc
+*.log
+*.csv
+nul
+.DS_Store
+Thumbs.db

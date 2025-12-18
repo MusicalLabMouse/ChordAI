@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chord Detection</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
+        }
+
+        .subtitle {
+            color: #8892b0;
+            margin-bottom: 2rem;
+        }
+
+        .chord-display {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 3rem 5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chord-name {
+            font-size: 6rem;
+            font-weight: bold;
+            color: #64ffda;
+            text-shadow: 0 0 30px rgba(100, 255, 218, 0.5);
+            min-height: 8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s ease-out, transform 0.1s ease-out, opacity 0.15s ease-out;
+        }
+
+        .chord-name.changing {
+            transform: scale(1.05);
+            opacity: 0.9;
+        }
+
+        .chord-type {
+            font-size: 1.5rem;
+            color: #8892b0;
+            margin-top: 0.5rem;
+            transition: opacity 0.2s ease-out;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        #startBtn {
+            background: #64ffda;
+            color: #1a1a2e;
+        }
+
+        #startBtn:hover {
+            background: #4fd1b5;
+            transform: translateY(-2px);
+        }
+
+        #startBtn:disabled {
+            background: #4a4a5a;
+            color: #8892b0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #stopBtn {
+            background: #ff6b6b;
+            color: #fff;
+        }
+
+        #stopBtn:hover {
+            background: #ee5a5a;
+            transform: translateY(-2px);
+        }
+
+        #stopBtn:disabled {
+            background: #4a4a5a;
+            color: #8892b0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #synthBtn {
+            background: #4a4a5a;
+            color: #ccd6f6;
+        }
+
+        #synthBtn:hover {
+            background: #5a5a6a;
+            transform: translateY(-2px);
+        }
+
+        #synthBtn.active {
+            background: #9d4edd;
+            color: #fff;
+        }
+
+        #synthBtn.active:hover {
+            background: #b15eee;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+
+        .volume-control.active {
+            opacity: 1;
+        }
+
+        .volume-control label {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+
+        #volumeSlider {
+            width: 80px;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #volumeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #9d4edd;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        #volumeSlider::-webkit-slider-thumb:hover {
+            background: #b15eee;
+        }
+
+        #volumeSlider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #9d4edd;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            color: #8892b0;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4a4a5a;
+        }
+
+        .status-dot.loading {
+            background: #ffd93d;
+            animation: pulse 1s infinite;
+        }
+
+        .status-dot.ready {
+            background: #6bcb77;
+        }
+
+        .status-dot.listening {
+            background: #64ffda;
+            animation: pulse 1s infinite;
+        }
+
+        .status-dot.error {
+            background: #ff6b6b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .visualizer {
+            width: 100%;
+            max-width: 600px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        #waveform {
+            width: 100%;
+            height: 100%;
+        }
+
+        .info {
+            max-width: 600px;
+            text-align: center;
+            color: #8892b0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+            font-size: 0.8rem;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            color: #64ffda;
+            font-weight: bold;
+        }
+
+        .error-message {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            max-width: 600px;
+        }
+
+        .chord-history {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 400px;
+        }
+
+        .history-chord {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #8892b0;
+        }
+
+        .history-chord:first-child {
+            background: rgba(100, 255, 218, 0.2);
+            color: #64ffda;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Chord Detection</h1>
+    <p class="subtitle">CNN + TCN Neural Network</p>
+
+    <div class="status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Loading model...</span>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <div class="chord-display">
+        <div class="chord-name" id="chordName">-</div>
+        <div class="chord-type" id="chordType">Waiting for audio...</div>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" disabled>Start Listening</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="synthBtn">Synth: OFF</button>
+        <div class="volume-control" id="volumeControl">
+            <label for="volumeSlider">Vol</label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="50">
+        </div>
+    </div>
+
+    <div class="visualizer">
+        <canvas id="waveform"></canvas>
+    </div>
+
+    <div class="chord-history" id="chordHistory"></div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value" id="latency">-</div>
+            <div>Latency (ms)</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="confidence">-</div>
+            <div>Confidence</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="fps">-</div>
+            <div>FPS</div>
+        </div>
+    </div>
+
+    <div class="info">
+        <p>This demo uses a CNN + TCN (Temporal Convolutional Network) model trained on chord progressions.
+        Click "Start Listening" to begin real-time chord detection from your microphone.</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/ort.min.js"></script>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
