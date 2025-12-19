@@ -21,7 +21,16 @@ from pathlib import Path
 
 from model import ChordRecognitionModel, ChordRecognitionModelTCN, ChordFormerModel, ChordFormerLoss
 from dataset import get_dataloaders, get_chordformer_dataloaders, CHORDFORMER_HEADS
+from amp_helper import AMPHelper  # [AMP] Delete this line to remove AMP
+from inference import viterbi_decode, reconstruct_chord_label  # CRF decoding (Section III.F)
 import config
+
+# Optional: mir_eval for WCSR metrics (Section IV.C of ChordFormer paper)
+try:
+    import mir_eval
+    HAS_MIR_EVAL = True
+except ImportError:
+    HAS_MIR_EVAL = False
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device):
@@ -169,7 +178,7 @@ def save_checkpoint(model, optimizer, epoch, val_acc, checkpoint_path, model_typ
 
 # ===================== ChordFormer Training Functions =====================
 
-def train_epoch_chordformer(model, train_loader, criterion, optimizer, device, max_grad_norm=5.0):
+def train_epoch_chordformer(model, train_loader, criterion, optimizer, device, max_grad_norm=5.0, amp=None):
     """
     Train ChordFormer for one epoch.
 
@@ -180,6 +189,7 @@ def train_epoch_chordformer(model, train_loader, criterion, optimizer, device, m
         optimizer: Optimizer
         device: Device (cuda/cpu)
         max_grad_norm: Gradient clipping norm
+        amp: AMPHelper instance (None = disabled) [AMP]
 
     Returns:
         avg_loss: Average training loss
@@ -197,20 +207,24 @@ def train_epoch_chordformer(model, train_loader, criterion, optimizer, device, m
         features = features.to(device)
         labels = {head: labels[head].to(device) for head in CHORDFORMER_HEADS}
 
-        # Forward pass
-        outputs = model(features, lengths)
-
-        # Compute multi-head loss
-        loss = criterion(outputs, labels)
-
-        # Backward pass
         optimizer.zero_grad()
-        loss.backward()
 
-        # Gradient clipping
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+        # [AMP] Forward pass with optional mixed precision
+        if amp:
+            with amp.autocast():
+                outputs = model(features, lengths)
+                loss = criterion(outputs, labels)
+        else:
+            outputs = model(features, lengths)
+            loss = criterion(outputs, labels)
 
-        optimizer.step()
+        # [AMP] Backward pass (amp.backward handles scaling if enabled)
+        if amp:
+            amp.backward(loss, optimizer, model, max_grad_norm)
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+            optimizer.step()
 
         # Compute accuracy for each head
         with torch.no_grad():
@@ -232,20 +246,28 @@ def train_epoch_chordformer(model, train_loader, criterion, optimizer, device, m
     return avg_loss, head_accs
 
 
-def validate_chordformer(model, val_loader, criterion, device):
+def validate_chordformer(model, val_loader, criterion, device, use_crf=True, transition_penalty=None):
     """
-    Validate ChordFormer model.
+    Validate ChordFormer model with optional CRF decoding.
+
+    Uses Viterbi decoding for evaluation to match ChordFormer paper (Section III.F).
+    Paper equations (10-12) describe CRF decoding with transition penalty γ.
 
     Args:
         model: ChordFormerModel
         val_loader: Validation DataLoader
         criterion: ChordFormerLoss
         device: Device (cuda/cpu)
+        use_crf: Whether to use CRF/Viterbi decoding (default True, as per paper)
+        transition_penalty: γ parameter from equation (12). If None, uses config value.
 
     Returns:
         avg_loss: Average validation loss
         head_accs: Dict of per-head accuracies
     """
+    if transition_penalty is None:
+        transition_penalty = config.TRANSITION_PENALTY
+
     model.eval()
     total_loss = 0.0
     head_correct = {head: 0 for head in CHORDFORMER_HEADS}
@@ -262,13 +284,30 @@ def validate_chordformer(model, val_loader, criterion, device):
             # Forward pass
             outputs = model(features, lengths)
 
-            # Compute loss
+            # Compute loss (always without CRF - loss is for training)
             loss = criterion(outputs, labels)
             total_loss += loss.item()
 
             # Compute accuracy for each head
+            batch_size = features.shape[0]
             for head in CHORDFORMER_HEADS:
-                predictions = outputs[head].argmax(dim=-1)
+                if use_crf:
+                    # CRF/Viterbi decoding (Section III.F of ChordFormer paper)
+                    # Apply Viterbi independently to each sample in batch
+                    logits = outputs[head]  # [batch, time, classes]
+                    log_probs = torch.log_softmax(logits, dim=-1).cpu().numpy()
+
+                    predictions = torch.zeros_like(labels[head])
+                    for b in range(batch_size):
+                        seq_len = int(lengths[b].item()) if lengths is not None else logits.shape[1]
+                        # Viterbi decode this sample
+                        pred_seq = viterbi_decode(log_probs[b, :seq_len], transition_penalty)
+                        predictions[b, :seq_len] = torch.from_numpy(pred_seq)
+                        # Padded region stays 0 (will be masked out anyway)
+                else:
+                    # Simple argmax (faster but less accurate)
+                    predictions = outputs[head].argmax(dim=-1)
+
                 mask = (labels[head] != -1)
                 correct = ((predictions == labels[head]) & mask).sum().item()
                 head_correct[head] += correct
@@ -281,6 +320,169 @@ def validate_chordformer(model, val_loader, criterion, device):
     }
 
     return avg_loss, head_accs
+
+
+# ===================== Evaluation Metrics (Section IV.C-D of ChordFormer paper) =====================
+
+def compute_accframe(predictions, targets, mask):
+    """
+    Compute mean frame-wise accuracy (equation 14 from ChordFormer paper).
+
+    accframe = Σ z_i / Σ Z_i
+
+    Where z_i = correctly predicted frames, Z_i = total frames for track i.
+
+    Args:
+        predictions: Tensor [batch, time] of predicted class indices
+        targets: Tensor [batch, time] of ground truth class indices
+        mask: Boolean tensor [batch, time] where True = valid frame
+
+    Returns:
+        accframe: Float, frame-wise accuracy
+    """
+    correct = ((predictions == targets) & mask).sum().item()
+    total = mask.sum().item()
+    return correct / total if total > 0 else 0.0
+
+
+def compute_accclass(predictions, targets, mask, num_classes):
+    """
+    Compute mean class-wise accuracy (equation 15 from ChordFormer paper).
+
+    accclass = (1/|V|) Σ_{v∈V} (Σ z_i^v / Σ Z_i^v)
+
+    Where z_i^v = correctly predicted frames for class v,
+          Z_i^v = total frames labeled as class v.
+
+    This metric averages accuracy across all classes, giving equal weight
+    to rare and common classes. Important for imbalanced chord datasets.
+
+    Args:
+        predictions: Tensor [batch, time] of predicted class indices
+        targets: Tensor [batch, time] of ground truth class indices
+        mask: Boolean tensor [batch, time] where True = valid frame
+        num_classes: Number of classes
+
+    Returns:
+        accclass: Float, class-wise accuracy
+    """
+    class_correct = torch.zeros(num_classes, device=predictions.device)
+    class_total = torch.zeros(num_classes, device=predictions.device)
+
+    for c in range(num_classes):
+        class_mask = (targets == c) & mask
+        class_total[c] = class_mask.sum()
+        class_correct[c] = ((predictions == c) & class_mask).sum()
+
+    # Average over classes with samples (avoid division by zero)
+    valid = class_total > 0
+    if valid.sum() == 0:
+        return 0.0
+
+    per_class_acc = class_correct[valid] / class_total[valid]
+    return per_class_acc.mean().item()
+
+
+def compute_mir_eval_wcsr(ref_intervals, ref_labels, est_intervals, est_labels):
+    """
+    Compute Weighted Chord Symbol Recall (WCSR) using mir_eval library.
+
+    WCSR (equation 13 from ChordFormer paper):
+    WCSR = (Σ z_i / Σ Z_i) × 100
+
+    Uses mir_eval.chord.evaluate() which returns various metrics:
+    - Root: Root note accuracy
+    - Thirds: Major/minor third accuracy
+    - Triads: Full triad accuracy (root + quality)
+    - Tetrads: Triad + 7th accuracy
+    - Mirex: MIREX competition metric
+    - Majmin: Major/minor quality accuracy
+    - Sevenths: 7th extension accuracy
+
+    Args:
+        ref_intervals: numpy array [[start, end], ...] for reference
+        ref_labels: list of reference chord labels (mir_eval format)
+        est_intervals: numpy array [[start, end], ...] for estimation
+        est_labels: list of estimated chord labels (mir_eval format)
+
+    Returns:
+        scores: Dict of metric names to values
+    """
+    if not HAS_MIR_EVAL:
+        return {}
+
+    try:
+        scores = mir_eval.chord.evaluate(ref_intervals, ref_labels, est_intervals, est_labels)
+        # mir_eval returns lowercase keys
+        return {
+            'root': scores['root'],
+            'thirds': scores['thirds'],
+            'triads': scores['triads'],
+            'tetrads': scores['tetrads'],
+            'mirex': scores['mirex'],
+            'majmin': scores['majmin'],
+            'sevenths': scores['sevenths']
+        }
+    except Exception as e:
+        print(f"Warning: mir_eval error: {e}")
+        return {}
+
+
+def predictions_to_chord_labels(outputs, use_crf=True, transition_penalty=1.0, lengths=None):
+    """
+    Convert model outputs to chord label strings for mir_eval evaluation.
+
+    Args:
+        outputs: Dict of model outputs {'root_triad': [batch, time, classes], ...}
+        use_crf: Whether to use CRF/Viterbi decoding
+        transition_penalty: CRF transition penalty (γ parameter)
+        lengths: Sequence lengths for each sample [batch]
+
+    Returns:
+        List of lists of chord labels [[chord1, chord2, ...], ...]
+    """
+    batch_size = outputs['root_triad'].shape[0]
+    max_len = outputs['root_triad'].shape[1]
+    all_chord_labels = []
+
+    for b in range(batch_size):
+        seq_len = int(lengths[b].item()) if lengths is not None else max_len
+
+        if use_crf:
+            # Viterbi decode each head
+            root_triad_log_probs = torch.log_softmax(outputs['root_triad'][b, :seq_len], dim=-1).cpu().numpy()
+            bass_log_probs = torch.log_softmax(outputs['bass'][b, :seq_len], dim=-1).cpu().numpy()
+            seventh_log_probs = torch.log_softmax(outputs['7th'][b, :seq_len], dim=-1).cpu().numpy()
+            ninth_log_probs = torch.log_softmax(outputs['9th'][b, :seq_len], dim=-1).cpu().numpy()
+            eleventh_log_probs = torch.log_softmax(outputs['11th'][b, :seq_len], dim=-1).cpu().numpy()
+            thirteenth_log_probs = torch.log_softmax(outputs['13th'][b, :seq_len], dim=-1).cpu().numpy()
+
+            root_triad_preds = viterbi_decode(root_triad_log_probs, transition_penalty)
+            bass_preds = viterbi_decode(bass_log_probs, transition_penalty)
+            seventh_preds = viterbi_decode(seventh_log_probs, transition_penalty)
+            ninth_preds = viterbi_decode(ninth_log_probs, transition_penalty)
+            eleventh_preds = viterbi_decode(eleventh_log_probs, transition_penalty)
+            thirteenth_preds = viterbi_decode(thirteenth_log_probs, transition_penalty)
+        else:
+            root_triad_preds = outputs['root_triad'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+            bass_preds = outputs['bass'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+            seventh_preds = outputs['7th'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+            ninth_preds = outputs['9th'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+            eleventh_preds = outputs['11th'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+            thirteenth_preds = outputs['13th'][b, :seq_len].argmax(dim=-1).cpu().numpy()
+
+        # Reconstruct chord labels
+        chord_labels = []
+        for i in range(seq_len):
+            chord = reconstruct_chord_label(
+                root_triad_preds[i], bass_preds[i], seventh_preds[i],
+                ninth_preds[i], eleventh_preds[i], thirteenth_preds[i]
+            )
+            chord_labels.append(chord)
+
+        all_chord_labels.append(chord_labels)
+
+    return all_chord_labels
 
 
 def compute_class_weights_from_data(train_loader, head_sizes, gamma=0.5, w_max=10.0):
@@ -344,11 +546,11 @@ def main():
                         choices=['bilstm', 'tcn', 'chordformer'],
                         help='Model architecture: bilstm, tcn, or chordformer')
     parser.add_argument('--batch_size', type=int, default=None,
-                        help='Batch size (default: 64 for legacy, 16 for chordformer)')
+                        help='Batch size (default: 24 for chordformer, 64 for legacy). LR auto-scales with batch size.')
     parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs')
     parser.add_argument('--lr', type=float, default=None,
-                        help='Learning rate (default: 1e-4 for legacy, 1e-3 for chordformer)')
+                        help='Learning rate. If not set, uses linear scaling: lr = 1e-3 * (batch_size/24) for chordformer')
     parser.add_argument('--hidden_size', type=int, default=256,
                         help='LSTM hidden size (bilstm) or TCN channels (tcn) or Conformer dim (chordformer)')
     parser.add_argument('--dropout', type=float, default=0.2,
@@ -361,13 +563,26 @@ def main():
                         help='Training sequence length for ChordFormer (frames)')
     parser.add_argument('--no_augment', action='store_true',
                         help='Disable data augmentation for training')
+    parser.add_argument('--use_amp', action='store_true',
+                        help='[AMP] Enable mixed precision training (faster on T4/V100/A100)')
     args = parser.parse_args()
 
     # Set defaults based on model type
     if args.batch_size is None:
         args.batch_size = config.BATCH_SIZE if args.model_type == 'chordformer' else 64
+
+    # Learning rate scaling (linear scaling rule)
+    # Reference: Goyal et al. "Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour"
+    # LR scales linearly with batch size: lr = base_lr * (batch_size / reference_batch_size)
     if args.lr is None:
-        args.lr = 1e-3 if args.model_type == 'chordformer' else 1e-4
+        if args.model_type == 'chordformer':
+            base_lr = config.BASE_LEARNING_RATE
+            ref_batch = config.REFERENCE_BATCH_SIZE
+            args.lr = base_lr * (args.batch_size / ref_batch)
+            if args.batch_size != ref_batch:
+                print(f"Linear LR scaling: batch_size={args.batch_size} (ref={ref_batch}) → LR={args.lr:.2e} (base={base_lr:.0e})")
+        else:
+            args.lr = 1e-4
 
     # Create checkpoint directory
     checkpoint_dir = Path(args.checkpoint_dir)
@@ -450,6 +665,9 @@ def main():
             min_lr=config.LR_SCHEDULER_MIN_LR
         )
 
+        # [AMP] Create mixed precision helper (None if disabled)
+        amp = AMPHelper(enabled=args.use_amp) if args.use_amp else None
+
         # Training loop for ChordFormer
         best_val_acc = 0.0
         epochs_without_improvement = 0
@@ -462,7 +680,8 @@ def main():
             # Train
             train_loss, train_accs = train_epoch_chordformer(
                 model, train_loader, criterion, optimizer, device,
-                max_grad_norm=config.MAX_GRAD_NORM
+                max_grad_norm=config.MAX_GRAD_NORM,
+                amp=amp  # [AMP] Pass helper (None if disabled)
             )
 
             # Validate

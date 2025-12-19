@@ -66,6 +66,8 @@ REWEIGHT_MAX = 10.0   # Maximum weight clamp
 
 # Training Parameters
 BATCH_SIZE = 24  # ChordFormer paper uses 24 segments per mini-batch
+REFERENCE_BATCH_SIZE = 24  # Reference batch size for LR scaling (paper default)
+BASE_LEARNING_RATE = 1e-3  # ChordFormer uses 1e-3 with AdamW at reference batch size
 LEARNING_RATE = 1e-3  # ChordFormer uses 1e-3 with AdamW
 WEIGHT_DECAY = 1e-4
 NUM_EPOCHS = 100
@@ -79,6 +81,11 @@ LR_SCHEDULER_MIN_LR = 1e-6  # Stop training when LR drops below this
 
 # Gradient Clipping
 MAX_GRAD_NORM = 5.0
+
+# CRF Decoding (Section III.F of ChordFormer paper)
+# γ parameter from equation (12) - penalty for chord transitions
+# Higher values = smoother predictions (fewer chord changes)
+TRANSITION_PENALTY = 1.0
 
 # Data Split (train/val/test)
 TRAIN_RATIO = 0.8
