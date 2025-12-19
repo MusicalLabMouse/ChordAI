@@ -536,17 +536,19 @@ def get_chordformer_dataloaders(features_dir, batch_size=16, num_workers=0,
     norm_path = Path(features_dir) / 'normalization.json'
 
     # Create datasets
+    # Note: Using sequence_length for val/test too due to memory constraints
+    # with relative positional encoding (O(n^2) memory for attention)
     train_dataset = ChordFormerDataset(
         features_dir, train_ids, norm_path,
         augment=augment_train, sequence_length=sequence_length
     )
     val_dataset = ChordFormerDataset(
         features_dir, val_ids, norm_path,
-        augment=False, sequence_length=None  # Full sequences for validation
+        augment=False, sequence_length=sequence_length  # Same length for memory
     )
     test_dataset = ChordFormerDataset(
         features_dir, test_ids, norm_path,
-        augment=False, sequence_length=None  # Full sequences for testing
+        augment=False, sequence_length=sequence_length  # Same length for memory
     )
 
     # Create dataloaders
