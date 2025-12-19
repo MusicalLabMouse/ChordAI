@@ -1,7 +1,15 @@
+# Core deep learning
 torch>=2.0.0
-torchaudio>=2.0.0
+numpy>=1.21.0
+
+# Audio processing
 librosa>=0.10.0
-numpy>=1.24.0
-scipy>=1.10.0
+
+# Progress bars
 tqdm>=4.65.0
-scikit-learn>=1.3.0
+
+# Signal processing (for median filter in predict.py)
+scipy>=1.10.0
+
+# ONNX export (optional, for web deployment)
+onnx>=1.14.0
