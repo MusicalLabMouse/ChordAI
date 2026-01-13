@@ -15,6 +15,11 @@ from pathlib import Path
 # ChordFormer label heads
 CHORDFORMER_HEADS = ['root_triad', 'bass', '7th', '9th', '11th', '13th']
 
+# MIREX label heads (for degree-based model)
+MIREX_HEADS_CATEGORICAL = ['key', 'degree', 'bass']
+MIREX_HEADS_BINARY = ['pitches_abs', 'intervals_root', 'intervals_bass']
+MIREX_HEADS = MIREX_HEADS_CATEGORICAL + MIREX_HEADS_BINARY
+
 
 def shift_chord_labels(labels, semitone_shift, num_classes):
     """
@@ -337,6 +342,325 @@ class ChordFormerDataset(Dataset):
         return shifted
 
 
+# =============================================================================
+# MIREX 2025 Dataset with Time-Stretching Augmentation
+# =============================================================================
+
+def apply_time_stretch(features, labels, rate):
+    """
+    Apply time-stretching to CQT features and adjust labels.
+
+    Uses scipy interpolation for efficiency on pre-computed features.
+
+    Args:
+        features: CQT features [n_frames, n_bins]
+        labels: Dict of label arrays (categorical: [n_frames], binary: [n_frames, 12])
+        rate: Stretch rate (0.8 = slower/longer, 1.2 = faster/shorter)
+
+    Returns:
+        stretched_features, stretched_labels
+    """
+    import scipy.ndimage
+
+    n_frames_orig = features.shape[0]
+
+    # Time-stretch features (interpolation along time axis)
+    # rate > 1 = faster (fewer frames), rate < 1 = slower (more frames)
+    stretched_features = scipy.ndimage.zoom(features, (1/rate, 1), order=1)
+
+    n_frames_new = stretched_features.shape[0]
+
+    # Stretch labels to match new length
+    stretched_labels = {}
+    for head, arr in labels.items():
+        if arr.ndim == 1:
+            # Categorical labels - use nearest-neighbor interpolation
+            indices = np.round(np.linspace(0, len(arr) - 1, n_frames_new)).astype(int)
+            stretched_labels[head] = arr[indices]
+        else:
+            # Binary labels [n_frames, 12] - use nearest-neighbor interpolation
+            indices = np.round(np.linspace(0, arr.shape[0] - 1, n_frames_new)).astype(int)
+            stretched_labels[head] = arr[indices]
+
+    return stretched_features.astype(np.float32), stretched_labels
+
+
+class MIREXChordFormerDataset(Dataset):
+    """
+    Dataset class for MIREX 2025 degree-based chord recognition.
+
+    Loads pre-computed CQT features (252 bins) and MIREX-format labels:
+    - Categorical: key, degree, bass
+    - Binary: pitches_abs, intervals_root, intervals_bass
+
+    Includes data augmentation per MIREX paper Section 3.2:
+    - Pitch shift (-5 to +6 semitones)
+    - Time-stretching (0.8x to 1.2x, 50% probability)
+    - Gaussian noise (50% probability)
+    """
+
+    def __init__(self, features_dir, song_ids, normalization_path=None,
+                 augment=False, sequence_length=None,
+                 noise_prob=0.5, time_stretch_prob=0.5,
+                 time_stretch_range=(0.8, 1.2)):
+        """
+        Args:
+            features_dir: Path to features directory
+            song_ids: List of song IDs to include
+            normalization_path: Path to normalization.json (optional)
+            augment: Whether to apply data augmentation (for training only)
+            sequence_length: If set, extract random windows of this length
+            noise_prob: Probability of applying Gaussian noise (default 0.5 per paper)
+            time_stretch_prob: Probability of time-stretching (default 0.5 per paper)
+            time_stretch_range: Time stretch range (default 0.8-1.2 per paper)
+        """
+        self.features_dir = Path(features_dir)
+        self.augment = augment
+        self.sequence_length = sequence_length
+        self.noise_prob = noise_prob
+        self.time_stretch_prob = time_stretch_prob
+        self.time_stretch_range = time_stretch_range
+
+        # Filter song_ids to only include those with MIREX labels
+        # This handles the case where features were extracted without --mirex flag
+        valid_song_ids = []
+        skipped = 0
+        for song_id in song_ids:
+            song_dir = self.features_dir / f"{song_id:04d}"
+            mirex_labels_path = song_dir / 'labels_mirex.npz'
+            mirex_key_path = song_dir / 'labels_mirex_key.npy'
+            
+            # Check if MIREX labels exist
+            if mirex_labels_path.exists() or mirex_key_path.exists():
+                valid_song_ids.append(song_id)
+            else:
+                skipped += 1
+        
+        if skipped > 0:
+            print(f"Warning: Skipped {skipped} songs without MIREX labels")
+            print(f"  (Run feature extraction with --mirex flag to generate MIREX labels)")
+        
+        self.song_ids = valid_song_ids
+
+        # Load normalization statistics
+        self.mean = None
+        self.std = None
+        if normalization_path and Path(normalization_path).exists():
+            with open(normalization_path, 'r') as f:
+                norm_data = json.load(f)
+                self.mean = np.array(norm_data['mean'], dtype=np.float32)
+                self.std = np.array(norm_data['std'], dtype=np.float32)
+
+    def __len__(self):
+        return len(self.song_ids)
+
+    def __getitem__(self, idx):
+        """
+        Returns:
+            features: CQT features, shape [n_frames, 252]
+            labels: Dict with:
+                - Categorical: key, degree, bass [n_frames]
+                - Binary: pitches_abs, intervals_root, intervals_bass [n_frames, 12]
+            length: Sequence length (number of frames)
+        """
+        song_id = self.song_ids[idx]
+        song_dir = self.features_dir / f"{song_id:04d}"
+
+        # Load features
+        features = np.load(song_dir / 'features.npy')
+
+        # Load MIREX labels
+        labels = {}
+
+        # Try to load MIREX-format labels first
+        mirex_labels_path = song_dir / 'labels_mirex.npz'
+        if mirex_labels_path.exists():
+            mirex_data = np.load(mirex_labels_path)
+            for head in MIREX_HEADS:
+                labels[head] = mirex_data[head]
+        else:
+            # Fallback: try to load individual label files
+            for head in MIREX_HEADS_CATEGORICAL:
+                label_path = song_dir / f'labels_mirex_{head}.npy'
+                if label_path.exists():
+                    labels[head] = np.load(label_path)
+                else:
+                    # Create zero labels if not found
+                    labels[head] = np.zeros(len(features), dtype=np.int64)
+
+            for head in MIREX_HEADS_BINARY:
+                label_path = song_dir / f'labels_mirex_{head}.npy'
+                if label_path.exists():
+                    labels[head] = np.load(label_path)
+                else:
+                    # Create zero labels if not found
+                    labels[head] = np.zeros((len(features), 12), dtype=np.int64)
+
+        # Extract random window during training
+        if self.sequence_length and len(features) > self.sequence_length:
+            start_idx = random.randint(0, len(features) - self.sequence_length)
+            end_idx = start_idx + self.sequence_length
+            features = features[start_idx:end_idx]
+            for head in MIREX_HEADS:
+                labels[head] = labels[head][start_idx:end_idx]
+
+        # Apply data augmentation (training only)
+        if self.augment:
+            features, labels = self._apply_augmentation(features, labels)
+
+        # Apply z-score normalization (after augmentation)
+        if self.mean is not None and self.std is not None:
+            features = (features - self.mean) / self.std
+
+        # Convert to tensors
+        features = torch.from_numpy(features).float()
+        labels_tensors = {}
+        for head in MIREX_HEADS_CATEGORICAL:
+            labels_tensors[head] = torch.from_numpy(labels[head]).long()
+        for head in MIREX_HEADS_BINARY:
+            labels_tensors[head] = torch.from_numpy(labels[head]).float()
+
+        length = features.shape[0]
+
+        return features, labels_tensors, length
+
+    def _apply_augmentation(self, features, labels):
+        """
+        Apply data augmentation per MIREX paper Section 3.2.
+
+        Augmentations:
+        1. Pitch shift (-5 to +6 semitones) - 90% probability
+        2. Time-stretching (0.8x to 1.2x) - 50% probability per paper
+        3. Gaussian noise - 50% probability per paper
+        """
+        features = features.copy()
+        labels = {head: arr.copy() for head, arr in labels.items()}
+        n_bins = features.shape[1]
+        bins_per_octave = 36  # ChordFormer uses 36 bins/octave
+
+        # 1. Pitch shift (-5 to +6 semitones)
+        if random.random() < 0.9:
+            semitone_shift = random.randint(-5, 6)
+            bin_shift = semitone_shift * (bins_per_octave // 12)  # 3 bins per semitone
+
+            if bin_shift != 0:
+                # Roll features along frequency axis
+                features = np.roll(features, bin_shift, axis=1)
+                # Zero out wrapped bins
+                if bin_shift > 0:
+                    features[:, :bin_shift] = 0
+                else:
+                    features[:, bin_shift:] = 0
+
+                # Shift pitch-based labels
+                labels = self._shift_mirex_labels(labels, semitone_shift)
+
+        # 2. Time-stretching (0.8x to 1.2x) - per paper Section 3.2
+        if random.random() < self.time_stretch_prob:
+            stretch_rate = random.uniform(*self.time_stretch_range)
+            features, labels = apply_time_stretch(features, labels, stretch_rate)
+
+        # 3. Gaussian noise - 50% probability per paper Section 3.2
+        if random.random() < self.noise_prob:
+            noise_std = 0.1
+            noise = np.random.normal(0, noise_std, features.shape).astype(np.float32)
+            features = features + noise
+
+        return features, labels
+
+    def _shift_mirex_labels(self, labels, semitone_shift):
+        """
+        Shift MIREX labels to match pitch-shifted features.
+
+        For degree-based representation when pitch shifting:
+        - key: MUST shift (if C major shifted +2, now D major)
+        - degree: stays the same (chord's relationship to key is preserved)
+        - bass: MUST shift (absolute pitch class)
+        - pitches_abs: MUST rotate (absolute pitch classes)
+        - intervals_root/bass: stay the same (relative intervals don't change)
+
+        Example: G chord (V) in C major, shift +2 semitones:
+        - key: C (idx 1) -> D (idx 3)
+        - degree: V (idx 11) -> V (idx 11) [unchanged]
+        - bass: G (idx 8) -> A (idx 10)
+        - pitches_abs: [G,B,D] -> [A,C#,E] (rotated)
+        """
+        shifted = {head: arr.copy() for head, arr in labels.items()}
+
+        # Shift key (key: 0=N, 1-12 = C through B)
+        key = labels['key']
+        key_mask = key > 0
+        if key_mask.any():
+            valid_keys = key[key_mask]
+            # Shift within 1-12 range (pitch classes)
+            new_keys = (valid_keys - 1 + semitone_shift) % 12 + 1
+            shifted['key'][key_mask] = new_keys
+
+        # Shift bass notes (bass: 0=N, 1-12 = pitch classes)
+        bass = labels['bass']
+        bass_mask = bass > 0
+        if bass_mask.any():
+            valid_bass = bass[bass_mask]
+            new_bass = (valid_bass - 1 + semitone_shift) % 12 + 1
+            shifted['bass'][bass_mask] = new_bass
+
+        # Rotate absolute pitch vectors (these are absolute pitch classes)
+        shifted['pitches_abs'] = np.roll(labels['pitches_abs'], semitone_shift, axis=1)
+
+        # intervals_root and intervals_bass are RELATIVE intervals, don't shift
+        # (the interval from root to other notes doesn't change when transposing)
+
+        return shifted
+
+
+def collate_fn_mirex(batch):
+    """
+    Custom collate function for MIREX dataset with mixed categorical/binary labels.
+
+    Args:
+        batch: List of (features, labels_dict, length) tuples
+
+    Returns:
+        padded_features: Tensor of shape [batch, max_len, 252]
+        padded_labels: Dict of tensors
+            - Categorical (key, degree, bass): [batch, max_len]
+            - Binary (pitches_abs, intervals_root, intervals_bass): [batch, max_len, 12]
+        lengths: Tensor of sequence lengths [batch]
+    """
+    # Sort batch by length (descending)
+    batch = sorted(batch, key=lambda x: x[2], reverse=True)
+
+    features_list = [item[0] for item in batch]
+    labels_list = [item[1] for item in batch]
+    lengths = [item[2] for item in batch]
+
+    # Get max length and feature dimension
+    max_len = max(lengths)
+    n_bins = features_list[0].shape[1]
+
+    # Pad features
+    batch_size = len(batch)
+    padded_features = torch.zeros(batch_size, max_len, n_bins, dtype=torch.float32)
+
+    # Initialize padded labels
+    padded_labels = {}
+    for head in MIREX_HEADS_CATEGORICAL:
+        padded_labels[head] = torch.full((batch_size, max_len), -1, dtype=torch.long)
+    for head in MIREX_HEADS_BINARY:
+        padded_labels[head] = torch.zeros((batch_size, max_len, 12), dtype=torch.float32)
+
+    for i, (features, labels, length) in enumerate(zip(features_list, labels_list, lengths)):
+        padded_features[i, :length, :] = features
+        for head in MIREX_HEADS_CATEGORICAL:
+            padded_labels[head][i, :length] = labels[head]
+        for head in MIREX_HEADS_BINARY:
+            padded_labels[head][i, :length, :] = labels[head]
+
+    lengths = torch.tensor(lengths, dtype=torch.long)
+
+    return padded_features, padded_labels, lengths
+
+
 def collate_fn(batch):
     """
     Custom collate function for variable-length sequences.
@@ -591,6 +915,107 @@ def get_chordformer_dataloaders(features_dir, batch_size=16, num_workers=0,
 
     print(f"ChordFormer Dataset loaded: {len(train_ids)} train, {len(val_ids)} val, {len(test_ids)} test")
     print(f"Training sequence length: {sequence_length} frames")
+    print(f"Output heads: {list(head_sizes.keys())}")
+
+    return train_loader, val_loader, test_loader, head_sizes
+
+
+def get_mirex_dataloaders(features_dir, batch_size=16, num_workers=0,
+                          sequence_length=1000, augment_train=True,
+                          noise_prob=0.5, time_stretch_prob=0.5):
+    """
+    Create train, validation, and test dataloaders for MIREX model.
+
+    Args:
+        features_dir: Path to features directory
+        batch_size: Batch size
+        num_workers: Number of workers for data loading
+        sequence_length: Length of training sequences (1000 frames = ~23s)
+        augment_train: Whether to apply augmentation to training data
+        noise_prob: Noise augmentation probability (default 0.5 per paper)
+        time_stretch_prob: Time-stretch augmentation probability (default 0.5 per paper)
+
+    Returns:
+        train_loader, val_loader, test_loader: DataLoaders
+        head_sizes: Dict of output sizes for each head
+    """
+    from torch.utils.data import DataLoader
+
+    features_dir = Path(features_dir)
+    
+    # Check metadata to verify features were extracted with MIREX mode
+    metadata_path = features_dir / 'metadata.json'
+    if metadata_path.exists():
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        if not metadata.get('mirex_mode', False):
+            print("WARNING: Features were NOT extracted with --mirex flag!")
+            print("  Key confidence filtering may not have been applied.")
+            print("  Re-run feature extraction with --mirex flag for best results.")
+            print()
+
+    # Load data splits
+    train_ids, val_ids, test_ids = load_data_splits(features_dir)
+
+    # Normalization path
+    norm_path = Path(features_dir) / 'normalization.json'
+
+    # Create datasets
+    train_dataset = MIREXChordFormerDataset(
+        features_dir, train_ids, norm_path,
+        augment=augment_train, sequence_length=sequence_length,
+        noise_prob=noise_prob, time_stretch_prob=time_stretch_prob
+    )
+    val_dataset = MIREXChordFormerDataset(
+        features_dir, val_ids, norm_path,
+        augment=False, sequence_length=sequence_length
+    )
+    test_dataset = MIREXChordFormerDataset(
+        features_dir, test_ids, norm_path,
+        augment=False, sequence_length=sequence_length
+    )
+
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        collate_fn=collate_fn_mirex,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn_mirex,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn_mirex,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+    # MIREX head output sizes
+    head_sizes = {
+        'key': 13,          # N + 12 keys
+        'degree': 18,       # N + 17 degrees with enharmonic distinction
+        'bass': 13,         # N + 12 bass notes
+        'pitches_abs': 12,  # 12 pitch classes
+        'intervals_root': 12,
+        'intervals_bass': 12
+    }
+
+    print(f"MIREX Dataset loaded: {len(train_ids)} train, {len(val_ids)} val, {len(test_ids)} test")
+    print(f"Training sequence length: {sequence_length} frames")
+    print(f"Augmentation: noise={noise_prob}, time_stretch={time_stretch_prob}")
     print(f"Output heads: {list(head_sizes.keys())}")
 
     return train_loader, val_loader, test_loader, head_sizes

@@ -866,6 +866,308 @@ class ChordFormerLoss(nn.Module):
         return total_loss
 
 
+# =============================================================================
+# MIREX 2025 Degree-Based Chord Recognition Model
+# Paper: "Degree-Based Automatic Chord Recognition with Enharmonic Distinction"
+# =============================================================================
+
+class OctavewiseConvModule(nn.Module):
+    """
+    Octavewise convolution for capturing intervallic patterns.
+
+    From MIREX 2025 paper Section 2.2:
+    "The acoustic features are first processed with a convolutional kernel of
+    size one octave in the frequency direction (kernel_size = bins_per_octave),
+    sliding by one semitone (stride = bins_per_octave // 12). The output is
+    then passed through a linear layer to obtain a 256-dimensional representation."
+
+    Architecture:
+        Input:  [B, T, 252] - CQT features (7 octaves x 36 bins/octave)
+        Reshape: [B*T, 1, 252] - treat each frame independently
+        Conv1d: kernel=36, stride=3 -> [B*T, n_filters, 73]
+        BatchNorm + SiLU (Swish)
+        Flatten + Linear: n_filters * 73 -> d_model (256)
+        Output: [B, T, 256]
+    """
+
+    def __init__(self, n_bins=252, bins_per_octave=36, d_model=256, n_filters=64):
+        """
+        Args:
+            n_bins: Number of CQT frequency bins (default 252 = 7 octaves * 36)
+            bins_per_octave: CQT bins per octave (default 36)
+            d_model: Output dimension (default 256 per paper)
+            n_filters: Number of conv filters (default 64, not specified in paper)
+        """
+        super().__init__()
+
+        kernel_size = bins_per_octave  # 36 = 1 octave
+        stride = bins_per_octave // 12  # 3 = 1 semitone
+
+        # After conv: (252 - 36) / 3 + 1 = 73 positions
+        conv_out_positions = (n_bins - kernel_size) // stride + 1  # 73
+
+        self.conv = nn.Conv1d(1, n_filters, kernel_size=kernel_size, stride=stride)
+        self.bn = nn.BatchNorm1d(n_filters)
+        self.activation = nn.SiLU()  # Swish activation
+        self.linear = nn.Linear(n_filters * conv_out_positions, d_model)
+
+        self.n_bins = n_bins
+        self.n_filters = n_filters
+        self.conv_out_positions = conv_out_positions
+
+    def forward(self, x):
+        """
+        Args:
+            x: CQT features [B, T, n_bins]
+
+        Returns:
+            out: Projected features [B, T, d_model]
+        """
+        B, T, F = x.shape
+
+        # Reshape: [B, T, F] -> [B*T, 1, F]
+        x = x.view(B * T, 1, F)
+
+        # Conv1d: [B*T, 1, 252] -> [B*T, n_filters, 73]
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.activation(x)
+
+        # Flatten: [B*T, n_filters, 73] -> [B*T, n_filters * 73]
+        x = x.view(B * T, -1)
+
+        # Linear: [B*T, n_filters * 73] -> [B*T, d_model]
+        x = self.linear(x)
+
+        # Reshape back: [B*T, d_model] -> [B, T, d_model]
+        x = x.view(B, T, -1)
+
+        return x
+
+
+class MIREXChordFormerModel(nn.Module):
+    """
+    MIREX 2025 Degree-Based ChordFormer Model.
+
+    Architecture changes from standard ChordFormer:
+    1. Replaces input linear projection with OctavewiseConvModule
+    2. Uses 6 output heads (3 categorical + 3 binary) instead of original 6 heads
+    3. Outputs key-relative scale degrees instead of absolute pitches
+
+    Output Structure (80 total neurons):
+        Categorical Heads (CrossEntropy):
+            - Key:         13 classes {N, C, C#, D, D#, E, F, F#, G, G#, A, A#, B}
+            - Root Degree: 18 classes (N + 17 scale degrees with enharmonic distinction)
+            - Bass:        13 classes {N, C, C#, D, D#, E, F, F#, G, G#, A, A#, B}
+
+        Binary Heads (BCE with sigmoid):
+            - Absolute Pitches:    12 binary (pitch class presence)
+            - Intervals from Root: 12 binary (interval presence)
+            - Intervals from Bass: 12 binary (interval presence)
+    """
+
+    def __init__(
+        self,
+        n_bins=252,
+        d_model=256,
+        n_heads=4,
+        d_ff=1024,
+        n_layers=4,
+        conv_kernel_size=31,
+        dropout=0.1,
+        octavewise_n_filters=64,
+        num_keys=13,
+        num_degrees=18,
+        num_bass=13,
+        num_pitches=12
+    ):
+        """
+        Args:
+            n_bins: Number of CQT frequency bins (default 252)
+            d_model: Model dimension (default 256)
+            n_heads: Number of attention heads (default 4)
+            d_ff: Feed-forward dimension (default 1024)
+            n_layers: Number of Conformer blocks (default 4)
+            conv_kernel_size: Conformer conv kernel size (default 31)
+            dropout: Dropout probability (default 0.1)
+            octavewise_n_filters: Number of filters in OctavewiseConvModule (default 64)
+            num_keys: Number of key classes (default 13 = N + 12 keys)
+            num_degrees: Number of degree classes (default 18)
+            num_bass: Number of bass classes (default 13 = N + 12 notes)
+            num_pitches: Number of pitch classes (default 12)
+        """
+        super().__init__()
+
+        self.n_bins = n_bins
+        self.d_model = d_model
+
+        # Octavewise Convolution Module (replaces simple linear projection)
+        self.octavewise_conv = OctavewiseConvModule(
+            n_bins=n_bins,
+            bins_per_octave=36,
+            d_model=d_model,
+            n_filters=octavewise_n_filters
+        )
+
+        # Dropout after projection
+        self.input_dropout = nn.Dropout(dropout)
+
+        # Conformer layers (with relative positional encoding in attention)
+        self.conformer_layers = nn.ModuleList([
+            ConformerBlock(d_model, n_heads, d_ff, conv_kernel_size, dropout)
+            for _ in range(n_layers)
+        ])
+
+        # === Categorical Output Heads (CrossEntropy) ===
+        self.key_head = nn.Linear(d_model, num_keys)
+        self.degree_head = nn.Linear(d_model, num_degrees)
+        self.bass_head = nn.Linear(d_model, num_bass)
+
+        # === Binary Output Heads (BCEWithLogits - 12 dimensions each) ===
+        self.pitches_abs_head = nn.Linear(d_model, num_pitches)
+        self.intervals_root_head = nn.Linear(d_model, num_pitches)
+        self.intervals_bass_head = nn.Linear(d_model, num_pitches)
+
+        # Store head sizes for reference
+        self.num_keys = num_keys
+        self.num_degrees = num_degrees
+        self.num_bass = num_bass
+        self.num_pitches = num_pitches
+
+    def forward(self, x, lengths=None):
+        """
+        Args:
+            x: Input CQT features [batch, time, n_bins]
+            lengths: Optional sequence lengths for masking [batch]
+
+        Returns:
+            dict with keys:
+                'key':            [batch, time, 13]  - Key logits
+                'degree':         [batch, time, 18]  - Scale degree logits
+                'bass':           [batch, time, 13]  - Bass note logits
+                'pitches_abs':    [batch, time, 12]  - Absolute pitch presence logits
+                'intervals_root': [batch, time, 12]  - Intervals from root logits
+                'intervals_bass': [batch, time, 12]  - Intervals from bass logits
+        """
+        # Octavewise convolution input processing
+        x = self.octavewise_conv(x)  # [batch, time, d_model]
+
+        # Apply dropout
+        x = self.input_dropout(x)
+
+        # Create attention mask if lengths provided
+        mask = None
+        if lengths is not None:
+            batch_size, max_len = x.shape[:2]
+            lengths = lengths.to(x.device)
+            mask = torch.arange(max_len, device=x.device).expand(batch_size, max_len)
+            mask = mask >= lengths.unsqueeze(1)
+
+        # Conformer layers
+        for layer in self.conformer_layers:
+            x = layer(x, mask)
+
+        # Output predictions (6 heads)
+        outputs = {
+            # Categorical heads (for CrossEntropy loss)
+            'key': self.key_head(x),
+            'degree': self.degree_head(x),
+            'bass': self.bass_head(x),
+            # Binary heads (for BCEWithLogits loss)
+            'pitches_abs': self.pitches_abs_head(x),
+            'intervals_root': self.intervals_root_head(x),
+            'intervals_bass': self.intervals_bass_head(x),
+        }
+
+        return outputs
+
+
+class MIREXLoss(nn.Module):
+    """
+    Combined loss for MIREX degree-based chord recognition.
+
+    Loss = ce_weight * (CE_key + CE_degree + CE_bass)
+         + bce_weight * (BCE_pitches_abs + BCE_intervals_root + BCE_intervals_bass)
+
+    The loss combines:
+    - CrossEntropy for categorical outputs (key, degree, bass)
+    - BCEWithLogits for binary pitch presence outputs (3 x 12 dimensions)
+    """
+
+    def __init__(self, class_weights=None, ce_weight=1.0, bce_weight=0.5):
+        """
+        Args:
+            class_weights: Optional dict of weight tensors for each head
+                          {'key': tensor, 'degree': tensor, 'bass': tensor}
+            ce_weight: Weight for categorical (CrossEntropy) losses
+            bce_weight: Weight for binary (BCE) losses
+        """
+        super().__init__()
+
+        # Categorical losses (with optional class weights)
+        self.ce_key = nn.CrossEntropyLoss(
+            weight=class_weights.get('key') if class_weights else None,
+            ignore_index=-1
+        )
+        self.ce_degree = nn.CrossEntropyLoss(
+            weight=class_weights.get('degree') if class_weights else None,
+            ignore_index=-1
+        )
+        self.ce_bass = nn.CrossEntropyLoss(
+            weight=class_weights.get('bass') if class_weights else None,
+            ignore_index=-1
+        )
+
+        # Binary losses (multi-label)
+        self.bce = nn.BCEWithLogitsLoss()
+
+        self.ce_weight = ce_weight
+        self.bce_weight = bce_weight
+
+    def forward(self, outputs, targets):
+        """
+        Compute combined loss.
+
+        Args:
+            outputs: Dict from model forward
+                     {'key': [B,T,13], 'degree': [B,T,18], 'bass': [B,T,13],
+                      'pitches_abs': [B,T,12], 'intervals_root': [B,T,12],
+                      'intervals_bass': [B,T,12]}
+            targets: Dict with same keys, containing label tensors
+                     Categorical: [B,T] int64
+                     Binary: [B,T,12] float32
+
+        Returns:
+            total_loss: Scalar loss value
+        """
+        # Categorical losses (reshape for CrossEntropy)
+        loss_key = self.ce_key(
+            outputs['key'].view(-1, outputs['key'].shape[-1]),
+            targets['key'].view(-1)
+        )
+        loss_degree = self.ce_degree(
+            outputs['degree'].view(-1, outputs['degree'].shape[-1]),
+            targets['degree'].view(-1)
+        )
+        loss_bass = self.ce_bass(
+            outputs['bass'].view(-1, outputs['bass'].shape[-1]),
+            targets['bass'].view(-1)
+        )
+
+        # Binary losses
+        loss_pitches = self.bce(outputs['pitches_abs'], targets['pitches_abs'].float())
+        loss_intervals_root = self.bce(outputs['intervals_root'], targets['intervals_root'].float())
+        loss_intervals_bass = self.bce(outputs['intervals_bass'], targets['intervals_bass'].float())
+
+        # Combine losses
+        total = (
+            self.ce_weight * (loss_key + loss_degree + loss_bass) +
+            self.bce_weight * (loss_pitches + loss_intervals_root + loss_intervals_bass)
+        )
+
+        return total
+
+
 def test_model():
     """Test BiLSTM, TCN, and ChordFormer models with dummy data."""
     batch_size = 4
@@ -930,15 +1232,39 @@ def test_model():
     print(f"Total parameters: {params_cf:,}")
     print("ChordFormer model test passed!\n")
 
+    # Test MIREX ChordFormer model
+    print("=" * 60)
+    print("Testing MIREXChordFormerModel...")
+    print("=" * 60)
+
+    model_mirex = MIREXChordFormerModel(
+        n_bins=252,
+        d_model=256,
+        n_heads=4,
+        d_ff=1024,
+        n_layers=4
+    )
+    outputs_mirex = model_mirex(features_cf, lengths)
+
+    print(f"Input shape: {features_cf.shape}")
+    print(f"Output shapes:")
+    for key, val in outputs_mirex.items():
+        print(f"  {key}: {val.shape}")
+
+    params_mirex = sum(p.numel() for p in model_mirex.parameters())
+    print(f"Total parameters: {params_mirex:,}")
+    print("MIREX ChordFormer model test passed!\n")
+
     # Compare
     print("=" * 60)
     print("Model Comparison:")
     print("=" * 60)
-    print(f"BiLSTM parameters:     {params_bilstm:,}")
-    print(f"TCN parameters:        {params_tcn:,}")
-    print(f"ChordFormer parameters: {params_cf:,}")
+    print(f"BiLSTM parameters:           {params_bilstm:,}")
+    print(f"TCN parameters:              {params_tcn:,}")
+    print(f"ChordFormer parameters:      {params_cf:,}")
+    print(f"MIREX ChordFormer parameters: {params_mirex:,}")
 
-    return model_bilstm, model_tcn, model_chordformer
+    return model_bilstm, model_tcn, model_chordformer, model_mirex
 
 
 if __name__ == '__main__':

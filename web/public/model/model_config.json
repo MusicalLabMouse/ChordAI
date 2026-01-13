@@ -1,9 +1,62 @@
 {
-  "model_type": "tcn",
-  "num_classes": 25,
-  "hidden_size": 256,
-  "sample_rate": 22050,
-  "hop_length": 2048,
-  "n_bins": 84,
-  "frame_duration_ms": 92.87981859410431
+  "modelType": "chordformer",
+  "sampleRate": 22050,
+  "hopLength": 512,
+  "nBins": 252,
+  "binsPerOctave": 36,
+  "fmin": 32.7,
+  "outputs": {
+    "rootTriad": 85,
+    "bass": 13,
+    "7th": 4,
+    "9th": 4,
+    "11th": 3,
+    "13th": 3
+  },
+  "mappings": {
+    "roots": [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+    ],
+    "triads": [
+      "maj",
+      "min",
+      "sus4",
+      "sus2",
+      "dim",
+      "aug"
+    ],
+    "sevenths": [
+      "N",
+      "7",
+      "b7",
+      "bb7"
+    ],
+    "ninths": [
+      "N",
+      "9",
+      "#9",
+      "b9"
+    ],
+    "elevenths": [
+      "N",
+      "11",
+      "#11"
+    ],
+    "thirteenths": [
+      "N",
+      "13",
+      "b13"
+    ]
+  }
 }

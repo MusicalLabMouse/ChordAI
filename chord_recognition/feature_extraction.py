@@ -72,11 +72,104 @@ ENHARMONIC_MAP = {
 TRIAD_TYPES = ['maj', 'min', 'sus4', 'sus2', 'dim', 'aug']
 TRIAD_TO_IDX = {t: idx for idx, t in enumerate(TRIAD_TYPES)}
 
-# Extension mappings
-SEVENTH_MAP = {'N': 0, '7': 1, 'b7': 2, 'bb7': 3, 'maj7': 1, 'min7': 2, '6': 3}
+# Extension mappings (maps chord quality -> 7th interval type index)
+# Index meanings: 0=N (none), 1=7 (major 7th, 11 semitones), 2=b7 (minor 7th, 10 semitones), 3=bb7 (dim 7th, 9 semitones)
+# NOTE: Dominant 7th chord (written as "7") has a MINOR 7th interval (b7), not major!
+SEVENTH_MAP = {
+    'N': 0,       # No 7th
+    'maj7': 1,    # Major 7th chord -> major 7th interval (11 semitones)
+    '7': 2,       # Dominant 7th chord -> minor 7th interval (10 semitones) 
+    'min7': 2,    # Minor 7th chord -> minor 7th interval (10 semitones)
+    'm7': 2,      # Alternate notation for minor 7th
+    'dim7': 3,    # Diminished 7th chord -> diminished 7th interval (9 semitones)
+    'hdim7': 2,   # Half-diminished -> minor 7th interval (10 semitones)
+    'minmaj7': 1, # Minor-major 7th -> major 7th interval (11 semitones)
+    '6': 0,       # 6th chord doesn't have a 7th (the 6 is a separate extension)
+    'b7': 2,      # Explicit minor 7th interval
+    'bb7': 3,     # Explicit diminished 7th interval
+}
 NINTH_MAP = {'N': 0, '9': 1, '#9': 2, 'b9': 3}
 ELEVENTH_MAP = {'N': 0, '11': 1, '#11': 2}
 THIRTEENTH_MAP = {'N': 0, '13': 1, 'b13': 2}
+
+# Key index mapping for MIREX (0=N, 1-12 = C through B)
+KEY_TO_IDX = {'N': 0, 'C': 1, 'C#': 2, 'Db': 2, 'D': 3, 'D#': 4, 'Eb': 4,
+              'E': 5, 'F': 6, 'F#': 7, 'Gb': 7, 'G': 8, 'G#': 9, 'Ab': 9,
+              'A': 10, 'A#': 11, 'Bb': 11, 'B': 12}
+IDX_TO_KEY = ['N', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+
+def normalize_key_to_major(key_str):
+    """
+    Normalize a key string to its major key equivalent.
+
+    The MIREX paper uses 13 key classes representing major keys only.
+    For minor keys, we convert to the RELATIVE MAJOR (3 semitones up).
+
+    This is musically correct because:
+    - A minor and C major share the same scale notes (A,B,C,D,E,F,G)
+    - Scale degrees are relative to the major key tonic
+    - e.g., in A minor context, C chord is bIII; in C major context, C is I
+
+    Args:
+        key_str: Key string in various formats
+
+    Returns:
+        Major key tonic string (e.g., 'C', 'G', 'F#') or None
+
+    Examples:
+        'C' -> 'C' (already major)
+        'C:maj' -> 'C'
+        'A:min' -> 'C' (relative major of A minor)
+        'E:min' -> 'G' (relative major of E minor)
+        'F# minor' -> 'A' (relative major of F# minor)
+        'Bb:min' -> 'Db' (relative major of Bb minor)
+    """
+    if key_str is None:
+        return None
+
+    key_str = key_str.strip()
+    
+    # Detect if minor key
+    is_minor = ':min' in key_str or 'minor' in key_str.lower()
+    
+    # Extract tonic (remove mode qualifiers)
+    tonic = key_str.replace(':maj', '').replace(':min', '')
+    tonic = tonic.replace(' major', '').replace(' minor', '')
+    tonic = tonic.replace('major', '').replace('minor', '')
+    tonic = tonic.split(':')[0]  # Handle any remaining ':' suffix
+    tonic = tonic.strip()
+    
+    if not tonic:
+        return None
+    
+    # If minor key, convert to relative major (3 semitones up)
+    if is_minor:
+        # Get pitch class of minor tonic
+        tonic_idx = KEY_TO_IDX.get(tonic)
+        if tonic_idx is None or tonic_idx == 0:
+            return tonic  # Unknown tonic, return as-is
+        
+        # Relative major is 3 semitones up (minor 3rd interval)
+        # KEY_TO_IDX values are 1-12 (0 is N), so adjust
+        minor_pc = tonic_idx - 1  # Convert to 0-11 pitch class
+        major_pc = (minor_pc + 3) % 12  # Add 3 semitones
+        
+        # Convert back to key name (use appropriate spelling)
+        # Prefer flats for flat minor keys, sharps for sharp minor keys
+        if 'b' in tonic:
+            # Flat spelling preference
+            flat_keys = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+            return flat_keys[major_pc]
+        else:
+            # Sharp spelling preference
+            return IDX_TO_KEY[major_pc + 1]  # +1 because IDX_TO_KEY[0] is 'N'
+    
+    # Already major (or no mode specified, assume major)
+    return tonic
+
+# Bass note index mapping (0=N, 1-12 = C through B)
+BASS_TO_IDX = KEY_TO_IDX  # Same mapping
 
 
 def normalize_root(root):
@@ -84,6 +177,320 @@ def normalize_root(root):
     if root in ENHARMONIC_MAP:
         return ENHARMONIC_MAP[root]
     return root
+
+
+# =============================================================================
+# MIREX 2025 Key Parsing and MIREX Label Generation
+# =============================================================================
+
+def parse_lab_key(lab_path):
+    """
+    Parse key and confidence from .lab file headers.
+
+    Expected format in .lab file:
+        # key: C
+        # key: A:min
+        # confidence: 0.85
+        0.0\t2.5\tC:maj
+        ...
+
+    For minor keys, automatically converts to the relative major since
+    the MIREX model uses 13 major key classes only.
+
+    Args:
+        lab_path: Path to .lab annotation file
+
+    Returns:
+        key: Major key string (e.g., 'C', 'G', 'F#') or None if not found
+             Minor keys are converted to their relative major.
+        confidence: Confidence value (0.0-1.0) or None if not found
+    """
+    raw_key = None
+    confidence = None
+
+    try:
+        with open(lab_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Check for key header
+                if line.startswith('# key:'):
+                    raw_key = line.split(':', 1)[1].strip()
+
+                # Check for confidence header
+                elif line.startswith('# confidence:'):
+                    try:
+                        confidence = float(line.split(':', 1)[1].strip())
+                    except ValueError:
+                        pass
+
+                # Stop reading headers once we hit chord annotations
+                elif not line.startswith('#'):
+                    break
+
+    except Exception as e:
+        print(f"Warning: Could not parse key from {lab_path}: {e}")
+
+    # Normalize to major key (converts minor keys to relative major)
+    key = normalize_key_to_major(raw_key)
+    
+    return key, confidence
+
+
+def should_include_song_mirex(lab_path, min_confidence=0.7):
+    """
+    Check if song should be included in MIREX training based on key confidence.
+
+    Args:
+        lab_path: Path to .lab annotation file
+        min_confidence: Minimum key confidence threshold (default 0.7)
+
+    Returns:
+        True if song should be included, False otherwise
+    """
+    key, confidence = parse_lab_key(lab_path)
+
+    # Must have key and confidence
+    if key is None or confidence is None:
+        return False
+
+    # Check confidence threshold
+    return confidence >= min_confidence
+
+
+def get_key_pitch_class(key):
+    """
+    Get pitch class (0-11) for a key.
+
+    Args:
+        key: Key string (e.g., 'C', 'F#', 'Bb')
+
+    Returns:
+        Pitch class (0=C, 1=C#, ..., 11=B) or None if invalid
+    """
+    if key is None or key == 'N':
+        return None
+
+    # Normalize key to sharp spelling
+    key_norm = normalize_root(key)
+
+    if key_norm in ROOT_TO_IDX:
+        return ROOT_TO_IDX[key_norm]
+
+    return None
+
+
+def compute_scale_degree(chord_root, key, use_sharp_spelling=True):
+    """
+    Compute scale degree index from chord root and key.
+
+    Args:
+        chord_root: Root note of chord (e.g., 'C', 'F#')
+        key: Song key (e.g., 'G', 'Bb')
+        use_sharp_spelling: If True, use sharp spelling for accidentals
+
+    Returns:
+        Scale degree index (0-17) or 0 if no chord
+    """
+    # Import config for degree mappings
+    import config
+
+    if chord_root is None or chord_root == 'N' or key is None:
+        return 0  # No chord
+
+    # Get pitch classes
+    root_pc = get_key_pitch_class(chord_root)
+    key_pc = get_key_pitch_class(key)
+
+    if root_pc is None or key_pc is None:
+        return 0  # Invalid, return no chord
+
+    # Compute semitone distance from key
+    semitones = (root_pc - key_pc) % 12
+
+    # Map to scale degree index based on spelling preference
+    if use_sharp_spelling:
+        return config.SEMITONE_TO_DEGREE_SHARP.get(semitones, 0)
+    else:
+        return config.SEMITONE_TO_DEGREE_FLAT.get(semitones, 0)
+
+
+def chord_to_pitch_vectors(root_idx, quality, bass_idx=None):
+    """
+    Convert chord to 36-dim pitch vector (3 x 12 binary).
+
+    Args:
+        root_idx: 0-11 pitch class of root (C=0, C#=1, ..., B=11)
+        quality: Chord quality string (e.g., 'maj7', 'min')
+        bass_idx: 0-11 pitch class of bass (None = same as root)
+
+    Returns:
+        absolute_pitches: [12] binary - which pitch classes are present
+        intervals_from_root: [12] binary - intervals relative to root
+        intervals_from_bass: [12] binary - intervals relative to bass
+    """
+    import config
+
+    if bass_idx is None:
+        bass_idx = root_idx
+
+    # Get intervals for this chord quality
+    intervals = config.CHORD_INTERVALS.get(quality, [0, 4, 7])  # default to major triad
+
+    # Absolute pitches present
+    absolute_pitches = [0] * 12
+    for interval in intervals:
+        pitch = (root_idx + interval) % 12
+        absolute_pitches[pitch] = 1
+
+    # Intervals from root
+    intervals_from_root = [0] * 12
+    for interval in intervals:
+        intervals_from_root[interval % 12] = 1
+
+    # Intervals from bass
+    intervals_from_bass = [0] * 12
+    for interval in intervals:
+        pitch = (root_idx + interval) % 12
+        bass_interval = (pitch - bass_idx) % 12
+        intervals_from_bass[bass_interval] = 1
+
+    return absolute_pitches, intervals_from_root, intervals_from_bass
+
+
+def parse_chord_mirex(chord_label, key):
+    """
+    Parse a chord label into MIREX format (key-relative degrees + pitch vectors).
+
+    Args:
+        chord_label: Chord label string (e.g., 'C:maj7', 'G:min/B')
+        key: Song key (e.g., 'C', 'G')
+
+    Returns:
+        Dictionary with keys:
+            'key': Key index (0-12)
+            'degree': Scale degree index (0-17)
+            'bass': Bass note index (0-12)
+            'pitches_abs': [12] binary
+            'intervals_root': [12] binary
+            'intervals_bass': [12] binary
+    """
+    result = {
+        'key': KEY_TO_IDX.get(key, 0) if key else 0,
+        'degree': 0,
+        'bass': 0,
+        'pitches_abs': [0] * 12,
+        'intervals_root': [0] * 12,
+        'intervals_bass': [0] * 12
+    }
+
+    # Handle no-chord
+    if chord_label in ('N', 'X', ''):
+        return result
+
+    # Handle bass note (slash chord)
+    bass_note = None
+    if '/' in chord_label:
+        parts = chord_label.split('/')
+        chord_label = parts[0]
+        bass_note = parts[1] if len(parts) > 1 else None
+
+    # Parse root and quality
+    if ':' in chord_label:
+        root, quality = chord_label.split(':', 1)
+    else:
+        root = chord_label
+        quality = 'maj'
+
+    # Normalize root
+    root = normalize_root(root)
+    if root not in ROOT_TO_IDX:
+        return result  # Unknown root, return N
+
+    root_idx = ROOT_TO_IDX[root]
+
+    # Compute scale degree (key-relative)
+    # Determine spelling preference from original chord annotation
+    use_sharp = not ('b' in chord_label and '#' not in chord_label)
+    result['degree'] = compute_scale_degree(root, key, use_sharp_spelling=use_sharp)
+
+    # Parse bass note
+    if bass_note:
+        bass_note = normalize_root(bass_note)
+        if bass_note in ROOT_TO_IDX:
+            result['bass'] = ROOT_TO_IDX[bass_note] + 1  # 1-indexed (0 = N)
+            bass_idx = ROOT_TO_IDX[bass_note]
+        else:
+            result['bass'] = root_idx + 1
+            bass_idx = root_idx
+    else:
+        # Bass is same as root
+        result['bass'] = root_idx + 1
+        bass_idx = root_idx
+
+    # Normalize quality for pitch vector computation
+    quality_normalized = normalize_quality_for_intervals(quality)
+
+    # Compute pitch vectors
+    pitches_abs, intervals_root, intervals_bass = chord_to_pitch_vectors(
+        root_idx, quality_normalized, bass_idx
+    )
+    result['pitches_abs'] = pitches_abs
+    result['intervals_root'] = intervals_root
+    result['intervals_bass'] = intervals_bass
+
+    return result
+
+
+def normalize_quality_for_intervals(quality):
+    """
+    Normalize chord quality string for interval lookup.
+
+    Args:
+        quality: Raw quality string (e.g., 'maj7', 'min(9)', 'dim7')
+
+    Returns:
+        Normalized quality for CHORD_INTERVALS lookup
+    """
+    quality_lower = quality.lower()
+
+    # Map common quality patterns to standard names
+    if 'dim7' in quality_lower:
+        return 'dim7'
+    elif 'hdim' in quality_lower or 'half' in quality_lower:
+        return 'hdim7'
+    elif 'minmaj7' in quality_lower:
+        return 'minmaj7'
+    elif 'min9' in quality_lower:
+        return 'min9'
+    elif 'min7' in quality_lower or (quality_lower.startswith('m') and '7' in quality and 'maj' not in quality_lower):
+        return 'min7'
+    elif 'maj9' in quality_lower:
+        return 'maj9'
+    elif 'maj7' in quality_lower:
+        return 'maj7'
+    elif '13' in quality:
+        return '13'
+    elif '11' in quality:
+        return '11'
+    elif '9' in quality:
+        return '9'
+    elif '7' in quality:
+        return '7'
+    elif 'dim' in quality_lower:
+        return 'dim'
+    elif 'aug' in quality_lower:
+        return 'aug'
+    elif 'sus4' in quality_lower:
+        return 'sus4'
+    elif 'sus2' in quality_lower:
+        return 'sus2'
+    elif 'min' in quality_lower or (quality_lower.startswith('m') and 'maj' not in quality_lower):
+        return 'min'
+    else:
+        return 'maj'
 
 
 def parse_chord_structured(chord_label):
@@ -412,6 +819,81 @@ def extract_cqt_features(audio_path, model_type='chordformer', device=None):
     return features
 
 
+def parse_lab_file_mirex(lab_path, n_frames, sr=SAMPLE_RATE, hop_length=HOP_LENGTH):
+    """
+    Parse .lab file and create frame-level MIREX labels.
+
+    Args:
+        lab_path: Path to .lab annotation file
+        n_frames: Number of frames in the audio
+        sr: Sample rate
+        hop_length: Hop length for frame alignment
+
+    Returns:
+        dict of label arrays:
+            'key': [n_frames] int64 - key index
+            'degree': [n_frames] int64 - scale degree index
+            'bass': [n_frames] int64 - bass note index
+            'pitches_abs': [n_frames, 12] int64 - pitch presence
+            'intervals_root': [n_frames, 12] int64 - intervals from root
+            'intervals_bass': [n_frames, 12] int64 - intervals from bass
+    """
+    # Get key from file header
+    key, confidence = parse_lab_key(lab_path)
+
+    # Initialize MIREX labels
+    labels = {
+        'key': np.zeros(n_frames, dtype=np.int64),
+        'degree': np.zeros(n_frames, dtype=np.int64),
+        'bass': np.zeros(n_frames, dtype=np.int64),
+        'pitches_abs': np.zeros((n_frames, 12), dtype=np.int64),
+        'intervals_root': np.zeros((n_frames, 12), dtype=np.int64),
+        'intervals_bass': np.zeros((n_frames, 12), dtype=np.int64)
+    }
+
+    # Set key for all frames (same key throughout song)
+    key_idx = KEY_TO_IDX.get(key, 0) if key else 0
+    labels['key'][:] = key_idx
+
+    # Read annotations
+    annotations = []
+    with open(lab_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split('\t')
+            if len(parts) >= 3:
+                start_time = float(parts[0])
+                end_time = float(parts[1])
+                chord_label = parts[2].strip()
+                annotations.append((start_time, end_time, chord_label))
+
+    # Convert annotations to frame-level labels
+    for start_time, end_time, chord_label in annotations:
+        start_frame = time_to_frame(start_time, sr, hop_length)
+        end_frame = time_to_frame(end_time, sr, hop_length)
+
+        # Clip to valid range
+        start_frame = max(0, min(start_frame, n_frames - 1))
+        end_frame = max(0, min(end_frame, n_frames))
+
+        # Parse chord into MIREX format
+        chord_data = parse_chord_mirex(chord_label, key)
+
+        # Fill frames
+        labels['degree'][start_frame:end_frame] = chord_data['degree']
+        labels['bass'][start_frame:end_frame] = chord_data['bass']
+
+        # Fill pitch vectors
+        for frame in range(start_frame, end_frame):
+            labels['pitches_abs'][frame] = chord_data['pitches_abs']
+            labels['intervals_root'][frame] = chord_data['intervals_root']
+            labels['intervals_bass'][frame] = chord_data['intervals_bass']
+
+    return labels
+
+
 def parse_lab_file(lab_path, n_frames, sr=SAMPLE_RATE, hop_length=HOP_LENGTH,
                    chord_to_idx=None, model_type='chordformer'):
     """
@@ -548,7 +1030,8 @@ def process_song(song_dir, output_dir, chord_to_idx):
         return False
 
 
-def process_song_to_dir(song_dir, output_dir, chord_to_idx=None, model_type='chordformer', device=None):
+def process_song_to_dir(song_dir, output_dir, chord_to_idx=None, model_type='chordformer', 
+                        device=None, mirex_mode=False, min_key_confidence=0.7):
     """
     Process a single song and save to specified output directory.
 
@@ -556,11 +1039,13 @@ def process_song_to_dir(song_dir, output_dir, chord_to_idx=None, model_type='cho
         song_dir: Path to song directory (contains MP3 and .lab files)
         output_dir: Path to output directory (already created)
         chord_to_idx: Chord vocabulary mapping (for legacy mode)
-        model_type: 'chordformer' or 'legacy'
+        model_type: 'chordformer', 'legacy', or 'mirex'
         device: torch device for GPU acceleration
+        mirex_mode: If True, use MIREX labels and enforce key confidence threshold
+        min_key_confidence: Minimum key confidence (only used when mirex_mode=True)
 
     Returns:
-        True if successful, False otherwise
+        True if successful, False otherwise, 'skipped' if filtered out by key confidence
     """
     song_dir = Path(song_dir)
     output_dir = Path(output_dir)
@@ -581,23 +1066,40 @@ def process_song_to_dir(song_dir, output_dir, chord_to_idx=None, model_type='cho
 
     lab_path = lab_files[0]
 
+    # MIREX mode: Check key confidence threshold BEFORE extracting features
+    if mirex_mode:
+        if not should_include_song_mirex(lab_path, min_confidence=min_key_confidence):
+            # Skip this song - key confidence too low or missing
+            return 'skipped'
+
     try:
-        # Extract CQT features
+        # Extract CQT features (always use chordformer bins for MIREX)
+        feature_model = 'chordformer' if mirex_mode else model_type
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            features = extract_cqt_features(audio_path, model_type=model_type, device=device)
+            features = extract_cqt_features(audio_path, model_type=feature_model, device=device)
 
         n_frames = features.shape[0]
 
-        # Parse labels
-        labels = parse_lab_file(lab_path, n_frames, chord_to_idx=chord_to_idx,
-                               model_type=model_type)
+        # Parse labels based on mode
+        if mirex_mode:
+            # Use MIREX-specific label parsing
+            labels = parse_lab_file_mirex(lab_path, n_frames)
+        else:
+            labels = parse_lab_file(lab_path, n_frames, chord_to_idx=chord_to_idx,
+                                   model_type=model_type)
 
         # Save features
         np.save(output_dir / 'features.npy', features)
 
         # Save labels (different format for each mode)
-        if model_type == 'chordformer':
+        if mirex_mode:
+            # Save MIREX labels (6 heads)
+            np.savez(output_dir / 'labels_mirex.npz', **labels)
+            # Also save individual files for efficient loading
+            for head_name, head_labels in labels.items():
+                np.save(output_dir / f'labels_mirex_{head_name}.npy', head_labels)
+        elif model_type == 'chordformer':
             # Save each head's labels separately for efficient loading
             for head_name, head_labels in labels.items():
                 np.save(output_dir / f'labels_{head_name}.npy', head_labels)
@@ -651,6 +1153,8 @@ def compute_normalization_stats(features_dir, train_song_ids):
 
 
 def main():
+    import config
+    
     parser = argparse.ArgumentParser(description='Extract CQT features for chord recognition')
     parser.add_argument('--data_dirs', type=str, nargs='+',
                         default=['../training_datasets/training_data', '../training_datasets/training_data_set2'],
@@ -660,15 +1164,27 @@ def main():
     parser.add_argument('--model_type', type=str, default='chordformer',
                         choices=['chordformer', 'legacy'],
                         help='Model type: chordformer (252 bins, 6-head) or legacy (84 bins)')
+    parser.add_argument('--mirex', action='store_true',
+                        help='Enable MIREX mode: degree-based labels with key confidence filtering')
+    parser.add_argument('--min_key_confidence', type=float, default=None,
+                        help=f'Minimum key confidence threshold (default: {config.MIN_KEY_CONFIDENCE})')
     args = parser.parse_args()
 
     model_type = args.model_type
+    mirex_mode = args.mirex
+    min_key_confidence = args.min_key_confidence if args.min_key_confidence is not None else config.MIN_KEY_CONFIDENCE
     data_dirs = [Path(d) for d in args.data_dirs]
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Model type: {model_type}")
-    if model_type == 'chordformer':
+    if mirex_mode:
+        print(f"  MIREX MODE ENABLED")
+        print(f"  CQT bins: {N_BINS_CHORDFORMER} ({BINS_PER_OCTAVE_CHORDFORMER} bins/octave)")
+        print(f"  Labels: MIREX 6-head (key, degree, bass, pitches_abs, intervals_root, intervals_bass)")
+        print(f"  Key confidence threshold: {min_key_confidence:.0%}")
+        print(f"  Songs with key confidence < {min_key_confidence:.0%} will be SKIPPED")
+    elif model_type == 'chordformer':
         print(f"  CQT bins: {N_BINS_CHORDFORMER} ({BINS_PER_OCTAVE_CHORDFORMER} bins/octave)")
         print(f"  Labels: 6-head structured (root_triad, bass, 7th, 9th, 11th, 13th)")
     else:
@@ -677,9 +1193,11 @@ def main():
 
     # Save model type metadata
     metadata = {
-        'model_type': model_type,
-        'n_bins': N_BINS_CHORDFORMER if model_type == 'chordformer' else N_BINS_LEGACY,
-        'bins_per_octave': BINS_PER_OCTAVE_CHORDFORMER if model_type == 'chordformer' else BINS_PER_OCTAVE_LEGACY,
+        'model_type': 'mirex' if mirex_mode else model_type,
+        'mirex_mode': mirex_mode,
+        'min_key_confidence': min_key_confidence if mirex_mode else None,
+        'n_bins': N_BINS_CHORDFORMER if (mirex_mode or model_type == 'chordformer') else N_BINS_LEGACY,
+        'bins_per_octave': BINS_PER_OCTAVE_CHORDFORMER if (mirex_mode or model_type == 'chordformer') else BINS_PER_OCTAVE_LEGACY,
         'hop_length': HOP_LENGTH,
         'sample_rate': SAMPLE_RATE
     }
@@ -729,20 +1247,43 @@ def main():
 
     # Step 4: Process all songs with sequential numbering
     successful = 0
+    skipped_low_confidence = 0
+    failed = 0
     processed_ids = []
 
-    for new_id, song_dir in enumerate(tqdm(all_song_dirs, desc="Extracting features"), start=1):
+    desc = "Extracting features (MIREX)" if mirex_mode else "Extracting features"
+    for new_id, song_dir in enumerate(tqdm(all_song_dirs, desc=desc), start=1):
         # Create output directory with new sequential ID
         song_output_dir = output_dir / f"{new_id:04d}"
         song_output_dir.mkdir(parents=True, exist_ok=True)
 
         # Process the song
-        if process_song_to_dir(song_dir, song_output_dir, chord_to_idx=chord_to_idx,
-                               model_type=model_type, device=device):
+        result = process_song_to_dir(
+            song_dir, song_output_dir, 
+            chord_to_idx=chord_to_idx,
+            model_type=model_type, 
+            device=device,
+            mirex_mode=mirex_mode,
+            min_key_confidence=min_key_confidence
+        )
+        
+        if result == True:
             successful += 1
             processed_ids.append(new_id)
+        elif result == 'skipped':
+            skipped_low_confidence += 1
+            # Remove the empty directory we created
+            try:
+                song_output_dir.rmdir()
+            except:
+                pass
+        else:
+            failed += 1
 
     print(f"\nSuccessfully processed {successful}/{len(all_song_dirs)} songs")
+    if mirex_mode:
+        print(f"  Skipped (low key confidence < {min_key_confidence:.0%}): {skipped_low_confidence}")
+        print(f"  Failed (errors): {failed}")
 
     # Step 5: Create data split (80/10/10) using shuffled IDs for better distribution
     random.seed(42)  # For reproducibility

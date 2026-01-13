@@ -1,263 +1,274 @@
 /**
- * Feature Extraction Module
- * Implements CQT (Constant-Q Transform) approximation for browser-based audio analysis
- *
- * Note: This is a simplified CQT implementation using FFT.
- * For production, consider using Essentia.js for more accurate CQT extraction.
+ * CQT Feature Extraction Module
+ * Extracts Constant-Q Transform features from audio for chord recognition
  */
 
 export class FeatureExtractor {
-    constructor(options = {}) {
-        this.sampleRate = options.sampleRate || 22050;
-        this.nBins = options.nBins || 84;  // 7 octaves * 12 bins
-        this.binsPerOctave = options.binsPerOctave || 12;
-        this.fmin = options.fmin || 32.7;  // C1
+  constructor(config, normalization) {
+    this.sampleRate = config.sampleRate || 22050;
+    this.hopLength = config.hopLength || 512;
+    this.nBins = config.nBins || 252;
+    this.binsPerOctave = config.binsPerOctave || 36;
+    this.fmin = config.fmin || 32.7; // C1
 
-        // Normalization parameters (loaded from model config)
-        this.mean = null;
-        this.std = null;
+    // Normalization parameters
+    this.mean = normalization?.mean || null;
+    this.std = normalization?.std || null;
 
-        // Pre-compute CQT frequency bins
-        this.frequencies = this.computeFrequencies();
-        this.fftSize = 2048;  // Reduced for better performance
+    // FFT size (reduced for lower latency, trades off some bass resolution)
+    this.fftSize = 4096;
 
-        // Pre-compute CQT kernel mapping from FFT bins to CQT bins
-        this.kernelMapping = this.computeKernelMapping();
+    // Pre-compute CQT filterbank
+    this.filterbank = this.createCQTFilterbank();
 
-        // Initialize optimized FFT
-        this.fft = new FFT(this.fftSize);
-        this.fftReal = new Float32Array(this.fftSize);
-        this.fftImag = new Float32Array(this.fftSize);
+    // Pre-compute Hann window
+    this.hannWindow = this.createHannWindow(this.fftSize);
+
+    // Pre-compute FFT twiddle factors
+    this.fft = new FFT(this.fftSize);
+  }
+
+  /**
+   * Create Hann window for FFT
+   */
+  createHannWindow(size) {
+    const window = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+      window[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (size - 1)));
     }
+    return window;
+  }
 
-    computeFrequencies() {
-        // Compute center frequencies for each CQT bin
-        const frequencies = new Float32Array(this.nBins);
-        for (let i = 0; i < this.nBins; i++) {
-            frequencies[i] = this.fmin * Math.pow(2, i / this.binsPerOctave);
+  /**
+   * Create CQT filterbank mapping FFT bins to CQT bins
+   * Uses triangular weighting for smooth interpolation
+   */
+  createCQTFilterbank() {
+    const filterbank = [];
+
+    // Calculate center frequencies for each CQT bin
+    for (let k = 0; k < this.nBins; k++) {
+      // Center frequency for this CQT bin
+      const centerFreq = this.fmin * Math.pow(2, k / this.binsPerOctave);
+
+      // Q factor (constant for CQT)
+      const Q = 1.0 / (Math.pow(2, 1.0 / this.binsPerOctave) - 1);
+
+      // Bandwidth
+      const bandwidth = centerFreq / Q;
+
+      // Lower and upper frequencies
+      const fLow = centerFreq - bandwidth / 2;
+      const fHigh = centerFreq + bandwidth / 2;
+
+      // Convert to FFT bin indices
+      const binLow = Math.max(0, Math.floor(fLow * this.fftSize / this.sampleRate));
+      const binCenter = Math.round(centerFreq * this.fftSize / this.sampleRate);
+      const binHigh = Math.min(this.fftSize / 2, Math.ceil(fHigh * this.fftSize / this.sampleRate));
+
+      // Create triangular filter weights
+      const filter = {
+        binStart: binLow,
+        binEnd: binHigh,
+        weights: []
+      };
+
+      for (let bin = binLow; bin <= binHigh; bin++) {
+        let weight;
+        if (bin <= binCenter) {
+          // Rising edge
+          weight = (bin - binLow) / Math.max(1, binCenter - binLow);
+        } else {
+          // Falling edge
+          weight = (binHigh - bin) / Math.max(1, binHigh - binCenter);
         }
-        return frequencies;
+        filter.weights.push(weight);
+      }
+
+      filterbank.push(filter);
     }
 
-    computeKernelMapping() {
-        // Map FFT bins to CQT bins
-        // Each CQT bin corresponds to a range of FFT bins
-        const mapping = [];
-        const fftBinWidth = this.sampleRate / this.fftSize;
+    return filterbank;
+  }
 
-        for (let i = 0; i < this.nBins; i++) {
-            const centerFreq = this.frequencies[i];
-            // Q factor for constant-Q
-            const Q = 1 / (Math.pow(2, 1 / this.binsPerOctave) - 1);
-            const bandwidth = centerFreq / Q;
+  /**
+   * Extract CQT features from audio samples
+   * @param {Float32Array} samples - Audio samples (should be fftSize = 8192)
+   * @returns {Float32Array} - CQT features (nBins dimensions)
+   */
+  extractFrame(samples) {
+    // Use samples directly (should already be fftSize)
+    const windowedSamples = new Float32Array(this.fftSize);
 
-            const lowFreq = centerFreq - bandwidth / 2;
-            const highFreq = centerFreq + bandwidth / 2;
+    // Copy and apply Hann window
+    const copyLength = Math.min(samples.length, this.fftSize);
+    for (let i = 0; i < copyLength; i++) {
+      windowedSamples[i] = samples[i] * this.hannWindow[i];
+    }
 
-            const lowBin = Math.max(0, Math.floor(lowFreq / fftBinWidth));
-            const highBin = Math.min(this.fftSize / 2, Math.ceil(highFreq / fftBinWidth));
+    // Compute FFT
+    const spectrum = this.fft.forward(windowedSamples);
 
-            mapping.push({ lowBin, highBin, centerFreq });
+    // Compute magnitude spectrum with normalization
+    // Divide by fftSize to normalize FFT output to match librosa's scale
+    const magnitudes = new Float32Array(this.fftSize / 2 + 1);
+    const normFactor = this.fftSize;
+    for (let i = 0; i <= this.fftSize / 2; i++) {
+      const re = spectrum.real[i];
+      const im = spectrum.imag[i];
+      magnitudes[i] = Math.sqrt(re * re + im * im) / normFactor;
+    }
+
+    // Apply CQT filterbank
+    const cqt = new Float32Array(this.nBins);
+    for (let k = 0; k < this.nBins; k++) {
+      const filter = this.filterbank[k];
+      let sum = 0;
+
+      for (let j = 0; j < filter.weights.length; j++) {
+        const binIndex = filter.binStart + j;
+        if (binIndex < magnitudes.length) {
+          sum += magnitudes[binIndex] * filter.weights[j];
         }
+      }
 
-        return mapping;
+      cqt[k] = sum;
     }
 
-    async loadNormalization() {
-        try {
-            const response = await fetch('/model/normalization.json');
-            if (!response.ok) {
-                console.warn('Normalization file not found, using defaults');
-                this.setDefaultNormalization();
-                return;
-            }
+    // Convert to dB scale with max reference (matching librosa's ref=np.max)
+    // This normalizes so the maximum value becomes 0 dB
+    const cqtDb = new Float32Array(this.nBins);
 
-            const data = await response.json();
-            this.mean = new Float32Array(data.mean);
-            this.std = new Float32Array(data.std);
-            console.log('Loaded normalization parameters');
-        } catch (error) {
-            console.warn('Failed to load normalization:', error);
-            this.setDefaultNormalization();
-        }
+    // Find max amplitude for reference (like librosa's ref=np.max)
+    let maxAmplitude = 0;
+    for (let k = 0; k < this.nBins; k++) {
+      if (cqt[k] > maxAmplitude) {
+        maxAmplitude = cqt[k];
+      }
+    }
+    const ref = Math.max(maxAmplitude, 1e-10);  // Avoid division by zero
+
+    for (let k = 0; k < this.nBins; k++) {
+      // amplitude_to_db: 20 * log10(amplitude / ref)
+      // With ref=max, the maximum becomes 0 dB, others are negative
+      const amplitude = Math.max(cqt[k], 1e-10);
+      cqtDb[k] = 20 * Math.log10(amplitude / ref);
+      // Apply floor to match librosa's top_db=80 default
+      cqtDb[k] = Math.max(cqtDb[k], -80);
     }
 
-    setDefaultNormalization() {
-        // Default normalization (approximate values from training)
-        this.mean = new Float32Array(this.nBins).fill(-3.5);
-        this.std = new Float32Array(this.nBins).fill(1.8);
+    return cqtDb;
+  }
+
+  /**
+   * Normalize features using z-score normalization
+   * @param {Float32Array} features - Raw CQT features
+   * @returns {Float32Array} - Normalized features
+   */
+  normalize(features) {
+    if (!this.mean || !this.std) {
+      return features;
     }
 
-    extractCQT(samples) {
-        // Apply window function (Hann window)
-        const windowed = this.applyWindow(samples);
-
-        // Compute FFT
-        const fftResult = this.computeFFT(windowed);
-
-        // Convert FFT to CQT bins
-        const cqt = this.fftToCQT(fftResult);
-
-        // Apply log scaling
-        const logCqt = this.logScale(cqt);
-
-        // Normalize
-        const normalized = this.normalize(logCqt);
-
-        return normalized;
+    const normalized = new Float32Array(features.length);
+    for (let i = 0; i < features.length; i++) {
+      normalized[i] = (features[i] - this.mean[i]) / (this.std[i] || 1);
     }
 
-    applyWindow(samples) {
-        const n = samples.length;
-        const windowed = new Float32Array(n);
+    return normalized;
+  }
 
-        for (let i = 0; i < n; i++) {
-            // Hann window
-            const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (n - 1)));
-            windowed[i] = samples[i] * window;
-        }
-
-        return windowed;
-    }
-
-    computeFFT(samples) {
-        // Zero-pad/copy to FFT buffers
-        this.fftReal.fill(0);
-        this.fftImag.fill(0);
-        const copyLen = Math.min(samples.length, this.fftSize);
-        this.fftReal.set(samples.subarray(0, copyLen));
-
-        // Use optimized Cooley-Tukey FFT (O(n log n) instead of O(n²))
-        this.fft.forward(this.fftReal, this.fftImag);
-
-        // Compute magnitude (only need first half due to symmetry)
-        const magnitude = new Float32Array(this.fftSize / 2);
-        for (let i = 0; i < this.fftSize / 2; i++) {
-            magnitude[i] = Math.sqrt(
-                this.fftReal[i] * this.fftReal[i] +
-                this.fftImag[i] * this.fftImag[i]
-            );
-        }
-
-        return magnitude;
-    }
-
-    fftToCQT(fftMagnitude) {
-        const cqt = new Float32Array(this.nBins);
-
-        for (let i = 0; i < this.nBins; i++) {
-            const { lowBin, highBin } = this.kernelMapping[i];
-
-            // Average magnitude over the frequency range
-            let sum = 0;
-            let count = 0;
-
-            for (let j = lowBin; j <= highBin && j < fftMagnitude.length; j++) {
-                sum += fftMagnitude[j];
-                count++;
-            }
-
-            cqt[i] = count > 0 ? sum / count : 0;
-        }
-
-        return cqt;
-    }
-
-    logScale(cqt) {
-        const logCqt = new Float32Array(cqt.length);
-        const epsilon = 1e-6;
-
-        for (let i = 0; i < cqt.length; i++) {
-            logCqt[i] = Math.log(cqt[i] + epsilon);
-        }
-
-        return logCqt;
-    }
-
-    normalize(features) {
-        if (!this.mean || !this.std) {
-            return features;
-        }
-
-        const normalized = new Float32Array(features.length);
-
-        for (let i = 0; i < features.length; i++) {
-            normalized[i] = (features[i] - this.mean[i]) / this.std[i];
-        }
-
-        return normalized;
-    }
+  /**
+   * Extract and normalize a single frame
+   * @param {Float32Array} samples - Audio samples
+   * @returns {Float32Array} - Normalized CQT features
+   */
+  processFrame(samples) {
+    const features = this.extractFrame(samples);
+    return this.normalize(features);
+  }
 }
 
+
 /**
- * Optimized FFT using Cooley-Tukey algorithm
- * For better performance in production
+ * Simple FFT implementation using Cooley-Tukey algorithm
  */
-export class FFT {
-    constructor(size) {
-        this.size = size;
-        this.levels = Math.log2(size);
+class FFT {
+  constructor(size) {
+    this.size = size;
+    this.log2Size = Math.log2(size);
 
-        if (Math.pow(2, this.levels) !== size) {
-            throw new Error('FFT size must be a power of 2');
-        }
-
-        // Pre-compute bit reversal indices
-        this.bitReversal = new Uint32Array(size);
-        for (let i = 0; i < size; i++) {
-            this.bitReversal[i] = this.reverseBits(i, this.levels);
-        }
-
-        // Pre-compute twiddle factors
-        this.cosTable = new Float32Array(size / 2);
-        this.sinTable = new Float32Array(size / 2);
-        for (let i = 0; i < size / 2; i++) {
-            const angle = -2 * Math.PI * i / size;
-            this.cosTable[i] = Math.cos(angle);
-            this.sinTable[i] = Math.sin(angle);
-        }
+    if (Math.pow(2, this.log2Size) !== size) {
+      throw new Error('FFT size must be a power of 2');
     }
 
-    reverseBits(x, bits) {
-        let result = 0;
-        for (let i = 0; i < bits; i++) {
-            result = (result << 1) | (x & 1);
-            x >>= 1;
-        }
-        return result;
+    // Pre-compute bit-reversal permutation
+    this.reverseTable = new Uint32Array(size);
+    for (let i = 0; i < size; i++) {
+      this.reverseTable[i] = this.reverseBits(i, this.log2Size);
     }
 
-    forward(real, imag) {
-        const n = this.size;
-
-        // Bit reversal permutation
-        for (let i = 0; i < n; i++) {
-            const j = this.bitReversal[i];
-            if (j > i) {
-                [real[i], real[j]] = [real[j], real[i]];
-                [imag[i], imag[j]] = [imag[j], imag[i]];
-            }
-        }
-
-        // Cooley-Tukey FFT
-        for (let size = 2; size <= n; size *= 2) {
-            const halfSize = size / 2;
-            const tableStep = n / size;
-
-            for (let i = 0; i < n; i += size) {
-                for (let j = 0; j < halfSize; j++) {
-                    const k = j * tableStep;
-                    const tReal = real[i + j + halfSize] * this.cosTable[k] -
-                                  imag[i + j + halfSize] * this.sinTable[k];
-                    const tImag = real[i + j + halfSize] * this.sinTable[k] +
-                                  imag[i + j + halfSize] * this.cosTable[k];
-
-                    real[i + j + halfSize] = real[i + j] - tReal;
-                    imag[i + j + halfSize] = imag[i + j] - tImag;
-                    real[i + j] += tReal;
-                    imag[i + j] += tImag;
-                }
-            }
-        }
+    // Pre-compute twiddle factors
+    this.cosTable = new Float32Array(size / 2);
+    this.sinTable = new Float32Array(size / 2);
+    for (let i = 0; i < size / 2; i++) {
+      const angle = -2 * Math.PI * i / size;
+      this.cosTable[i] = Math.cos(angle);
+      this.sinTable[i] = Math.sin(angle);
     }
+  }
+
+  reverseBits(x, bits) {
+    let result = 0;
+    for (let i = 0; i < bits; i++) {
+      result = (result << 1) | (x & 1);
+      x >>= 1;
+    }
+    return result;
+  }
+
+  forward(input) {
+    const n = this.size;
+    const real = new Float32Array(n);
+    const imag = new Float32Array(n);
+
+    // Bit-reversal permutation
+    for (let i = 0; i < n; i++) {
+      real[i] = input[this.reverseTable[i]];
+      imag[i] = 0;
+    }
+
+    // Cooley-Tukey FFT
+    for (let size = 2; size <= n; size *= 2) {
+      const halfSize = size / 2;
+      const step = n / size;
+
+      for (let i = 0; i < n; i += size) {
+        for (let j = 0; j < halfSize; j++) {
+          const k = j * step;
+          const cos = this.cosTable[k];
+          const sin = this.sinTable[k];
+
+          const evenIdx = i + j;
+          const oddIdx = i + j + halfSize;
+
+          const evenReal = real[evenIdx];
+          const evenImag = imag[evenIdx];
+          const oddReal = real[oddIdx];
+          const oddImag = imag[oddIdx];
+
+          // Butterfly operation
+          const tReal = cos * oddReal - sin * oddImag;
+          const tImag = sin * oddReal + cos * oddImag;
+
+          real[evenIdx] = evenReal + tReal;
+          imag[evenIdx] = evenImag + tImag;
+          real[oddIdx] = evenReal - tReal;
+          imag[oddIdx] = evenImag - tImag;
+        }
+      }
+    }
+
+    return { real, imag };
+  }
 }

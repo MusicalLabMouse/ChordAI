@@ -1,358 +1,411 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Chord Detection</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChordFormer - Real-Time Chord Detection</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            min-height: 100vh;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem;
-        }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
 
-        h1 {
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
-        }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
 
-        .subtitle {
-            color: #8892b0;
-            margin-bottom: 2rem;
-        }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #ffffff;
+    }
 
-        .chord-display {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 3rem 5rem;
-            margin-bottom: 2rem;
-            text-align: center;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
+    .subtitle {
+      font-size: 0.9rem;
+      color: #888;
+      margin-bottom: 2rem;
+    }
 
-        .chord-name {
-            font-size: 6rem;
-            font-weight: bold;
-            color: #64ffda;
-            text-shadow: 0 0 30px rgba(100, 255, 218, 0.5);
-            min-height: 8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.15s ease-out, transform 0.1s ease-out, opacity 0.15s ease-out;
-        }
+    /* Status indicator */
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
 
-        .chord-name.changing {
-            transform: scale(1.05);
-            opacity: 0.9;
-        }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #666;
+      transition: background 0.3s ease;
+    }
 
-        .chord-type {
-            font-size: 1.5rem;
-            color: #8892b0;
-            margin-top: 0.5rem;
-            transition: opacity 0.2s ease-out;
-        }
+    .status-dot.loading {
+      background: #f39c12;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
 
-        .controls {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
+    .status-dot.ready {
+      background: #3498db;
+    }
 
-        button {
-            padding: 1rem 2rem;
-            font-size: 1rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
+    .status-dot.listening {
+      background: #2ecc71;
+      animation: pulse 1s ease-in-out infinite;
+    }
 
-        #startBtn {
-            background: #64ffda;
-            color: #1a1a2e;
-        }
+    .status-dot.error {
+      background: #e74c3c;
+    }
 
-        #startBtn:hover {
-            background: #4fd1b5;
-            transform: translateY(-2px);
-        }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
 
-        #startBtn:disabled {
-            background: #4a4a5a;
-            color: #8892b0;
-            cursor: not-allowed;
-            transform: none;
-        }
+    /* Chord display */
+    .chord-container {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      margin-bottom: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
 
-        #stopBtn {
-            background: #ff6b6b;
-            color: #fff;
-        }
+    .chord-display {
+      font-size: 5rem;
+      font-weight: 700;
+      color: #ffffff;
+      min-height: 1.2em;
+      transition: all 0.15s ease;
+    }
 
-        #stopBtn:hover {
-            background: #ee5a5a;
-            transform: translateY(-2px);
-        }
+    .chord-display.no-chord {
+      color: #555;
+    }
 
-        #stopBtn:disabled {
-            background: #4a4a5a;
-            color: #8892b0;
-            cursor: not-allowed;
-            transform: none;
-        }
+    .confidence {
+      font-size: 1.1rem;
+      color: #888;
+      margin-top: 1rem;
+    }
 
-        #synthBtn {
-            background: #4a4a5a;
-            color: #ccd6f6;
-        }
+    .confidence-value {
+      color: #64ffda;
+      font-weight: 600;
+    }
 
-        #synthBtn:hover {
-            background: #5a5a6a;
-            transform: translateY(-2px);
-        }
+    /* Latency display */
+    .latency-container {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
 
-        #synthBtn.active {
-            background: #9d4edd;
-            color: #fff;
-        }
+    .latency-stats {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+    }
 
-        #synthBtn.active:hover {
-            background: #b15eee;
-        }
+    .latency-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
 
-        .volume-control {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            opacity: 0.5;
-            transition: opacity 0.3s ease;
-        }
+    .latency-label {
+      font-size: 0.75rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
 
-        .volume-control.active {
-            opacity: 1;
-        }
+    .latency-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #888;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    }
 
-        .volume-control label {
-            color: #8892b0;
-            font-size: 0.9rem;
-        }
+    .latency-value.total {
+      color: #f39c12;
+    }
 
-        #volumeSlider {
-            width: 80px;
-            height: 6px;
-            -webkit-appearance: none;
-            appearance: none;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-            outline: none;
-            cursor: pointer;
-        }
+    .latency-value.warning {
+      color: #e74c3c;
+    }
 
-        #volumeSlider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            background: #9d4edd;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
+    /* Controls */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
 
-        #volumeSlider::-webkit-slider-thumb:hover {
-            background: #b15eee;
-        }
+    button {
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
 
-        #volumeSlider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            background: #9d4edd;
-            border-radius: 50%;
-            cursor: pointer;
-            border: none;
-        }
+    .btn-primary {
+      background: #6366f1;
+      color: white;
+    }
 
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            color: #8892b0;
-        }
+    .btn-primary:hover:not(:disabled) {
+      background: #4f46e5;
+      transform: translateY(-1px);
+    }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #4a4a5a;
-        }
+    .btn-primary:disabled {
+      background: #4a4a6a;
+      cursor: not-allowed;
+    }
 
-        .status-dot.loading {
-            background: #ffd93d;
-            animation: pulse 1s infinite;
-        }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e0e0e0;
+    }
 
-        .status-dot.ready {
-            background: #6bcb77;
-        }
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.15);
+    }
 
-        .status-dot.listening {
-            background: #64ffda;
-            animation: pulse 1s infinite;
-        }
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
-        .status-dot.error {
-            background: #ff6b6b;
-        }
+    /* Error message */
+    .error-message {
+      color: #e74c3c;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      display: none;
+    }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+    .error-message.visible {
+      display: block;
+    }
 
-        .visualizer {
-            width: 100%;
-            max-width: 600px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            overflow: hidden;
-        }
+    /* Synth Controls */
+    .synth-container {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
 
-        #waveform {
-            width: 100%;
-            height: 100%;
-        }
+    .synth-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
 
-        .info {
-            max-width: 600px;
-            text-align: center;
-            color: #8892b0;
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
+    .synth-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
 
-        .stats {
-            display: flex;
-            gap: 2rem;
-            margin-top: 1rem;
-            font-size: 0.8rem;
-        }
+    /* Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
 
-        .stat {
-            text-align: center;
-        }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
 
-        .stat-value {
-            font-size: 1.2rem;
-            color: #64ffda;
-            font-weight: bold;
-        }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #444;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
 
-        .error-message {
-            background: rgba(255, 107, 107, 0.2);
-            border: 1px solid #ff6b6b;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            max-width: 600px;
-        }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
 
-        .chord-history {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            flex-wrap: wrap;
-            justify-content: center;
-            max-width: 400px;
-        }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #6366f1;
+    }
 
-        .history-chord {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 0.3rem 0.8rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            color: #8892b0;
-        }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+      background-color: white;
+    }
 
-        .history-chord:first-child {
-            background: rgba(100, 255, 218, 0.2);
-            color: #64ffda;
-        }
-    </style>
+    /* Volume Control */
+    .volume-control {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .volume-label {
+      font-size: 0.75rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      min-width: 50px;
+    }
+
+    .volume-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #6366f1;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .volume-slider::-webkit-slider-thumb:hover {
+      background: #4f46e5;
+    }
+
+    .volume-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #6366f1;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: auto;
+      padding-top: 2rem;
+      font-size: 0.8rem;
+      color: #555;
+    }
+  </style>
 </head>
 <body>
-    <h1>Real-Time Chord Detection</h1>
-    <p class="subtitle">CNN + TCN Neural Network</p>
+  <div class="container">
+    <h1>ChordFormer</h1>
+    <p class="subtitle">Real-Time Chord Detection</p>
 
     <div class="status">
-        <div class="status-dot" id="statusDot"></div>
-        <span id="statusText">Loading model...</span>
+      <span class="status-dot loading" id="statusDot"></span>
+      <span id="statusText">Loading model...</span>
     </div>
 
-    <div id="errorContainer"></div>
+    <div class="chord-container">
+      <div class="chord-display no-chord" id="chordDisplay">-</div>
+      <div class="confidence">
+        Confidence: <span class="confidence-value" id="confidenceValue">-</span>
+      </div>
+    </div>
 
-    <div class="chord-display">
-        <div class="chord-name" id="chordName">-</div>
-        <div class="chord-type" id="chordType">Waiting for audio...</div>
+    <div class="latency-container">
+      <div class="latency-stats">
+        <div class="latency-item">
+          <span class="latency-label">Pipeline</span>
+          <span class="latency-value" id="bufferLatency">-</span>
+        </div>
+        <div class="latency-item">
+          <span class="latency-label">Inference</span>
+          <span class="latency-value" id="inferenceLatency">-</span>
+        </div>
+        <div class="latency-item">
+          <span class="latency-label">Total</span>
+          <span class="latency-value total" id="totalLatency">-</span>
+        </div>
+        <div class="latency-item">
+          <span class="latency-label">FPS</span>
+          <span class="latency-value" id="fpsCounter">-</span>
+        </div>
+      </div>
     </div>
 
     <div class="controls">
-        <button id="startBtn" disabled>Start Listening</button>
-        <button id="stopBtn" disabled>Stop</button>
-        <button id="synthBtn">Synth: OFF</button>
-        <div class="volume-control" id="volumeControl">
-            <label for="volumeSlider">Vol</label>
-            <input type="range" id="volumeSlider" min="0" max="100" value="50">
-        </div>
+      <button class="btn-primary" id="startBtn" disabled>Start Listening</button>
+      <button class="btn-secondary" id="stopBtn" disabled>Stop</button>
     </div>
 
-    <div class="visualizer">
-        <canvas id="waveform"></canvas>
+    <div class="synth-container">
+      <div class="synth-header">
+        <span class="synth-label">Synth</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="synthToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="volume-control">
+        <span class="volume-label">Volume</span>
+        <input type="range" id="synthVolume" min="0" max="100" value="50" class="volume-slider">
+      </div>
     </div>
 
-    <div class="chord-history" id="chordHistory"></div>
+    <p class="error-message" id="errorMessage"></p>
+  </div>
 
-    <div class="stats">
-        <div class="stat">
-            <div class="stat-value" id="latency">-</div>
-            <div>Latency (ms)</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value" id="confidence">-</div>
-            <div>Confidence</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value" id="fps">-</div>
-            <div>FPS</div>
-        </div>
-    </div>
+  <div class="footer">
+    <p>Powered by ChordFormer &bull; ONNX Runtime Web</p>
+  </div>
 
-    <div class="info">
-        <p>This demo uses a CNN + TCN (Temporal Convolutional Network) model trained on chord progressions.
-        Click "Start Listening" to begin real-time chord detection from your microphone.</p>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/ort.min.js"></script>
-    <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

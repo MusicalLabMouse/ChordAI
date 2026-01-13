@@ -19,8 +19,10 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 from pathlib import Path
 
-from model import ChordRecognitionModel, ChordRecognitionModelTCN, ChordFormerModel, ChordFormerLoss
-from dataset import get_dataloaders, get_chordformer_dataloaders, CHORDFORMER_HEADS
+from model import (ChordRecognitionModel, ChordRecognitionModelTCN, ChordFormerModel,
+                   ChordFormerLoss, MIREXChordFormerModel, MIREXLoss)
+from dataset import (get_dataloaders, get_chordformer_dataloaders, get_mirex_dataloaders,
+                     CHORDFORMER_HEADS, MIREX_HEADS_CATEGORICAL, MIREX_HEADS_BINARY, MIREX_HEADS)
 from amp_helper import AMPHelper  # [AMP] Delete this line to remove AMP
 from inference import viterbi_decode, reconstruct_chord_label  # CRF decoding (Section III.F)
 import config
@@ -322,6 +324,196 @@ def validate_chordformer(model, val_loader, criterion, device, use_crf=True, tra
     return avg_loss, head_accs
 
 
+# ===================== MIREX Training Functions =====================
+
+def train_epoch_mirex(model, train_loader, criterion, optimizer, device, max_grad_norm=5.0, amp=None):
+    """
+    Train MIREX model for one epoch.
+
+    Args:
+        model: MIREXChordFormerModel
+        train_loader: Training DataLoader
+        criterion: MIREXLoss
+        optimizer: Optimizer
+        device: Device (cuda/cpu)
+        max_grad_norm: Gradient clipping norm
+        amp: AMPHelper instance (None = disabled)
+
+    Returns:
+        avg_loss: Average training loss
+        head_accs: Dict of per-head accuracies (categorical heads only)
+    """
+    model.train()
+    total_loss = 0.0
+    head_correct = {head: 0 for head in MIREX_HEADS_CATEGORICAL}
+    head_total = {head: 0 for head in MIREX_HEADS_CATEGORICAL}
+
+    progress_bar = tqdm(train_loader, desc="Training", unit="batch",
+                        bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+
+    for features, labels, lengths in progress_bar:
+        features = features.to(device)
+        labels_device = {}
+        for head in MIREX_HEADS_CATEGORICAL:
+            labels_device[head] = labels[head].to(device)
+        for head in MIREX_HEADS_BINARY:
+            labels_device[head] = labels[head].to(device)
+
+        optimizer.zero_grad()
+
+        # Forward pass with optional mixed precision
+        if amp:
+            with amp.autocast():
+                outputs = model(features, lengths)
+                loss = criterion(outputs, labels_device)
+        else:
+            outputs = model(features, lengths)
+            loss = criterion(outputs, labels_device)
+
+        # Backward pass
+        if amp:
+            amp.backward(loss, optimizer, model, max_grad_norm)
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+            optimizer.step()
+
+        # Compute accuracy for categorical heads
+        with torch.no_grad():
+            for head in MIREX_HEADS_CATEGORICAL:
+                predictions = outputs[head].argmax(dim=-1)
+                mask = (labels_device[head] != -1)
+                correct = ((predictions == labels_device[head]) & mask).sum().item()
+                head_correct[head] += correct
+                head_total[head] += mask.sum().item()
+
+        total_loss += loss.item()
+
+    avg_loss = total_loss / len(train_loader)
+    head_accs = {
+        head: head_correct[head] / head_total[head] if head_total[head] > 0 else 0.0
+        for head in MIREX_HEADS_CATEGORICAL
+    }
+
+    return avg_loss, head_accs
+
+
+def validate_mirex(model, val_loader, criterion, device, use_crf=True, transition_penalty=None):
+    """
+    Validate MIREX model.
+
+    Args:
+        model: MIREXChordFormerModel
+        val_loader: Validation DataLoader
+        criterion: MIREXLoss
+        device: Device (cuda/cpu)
+        use_crf: Whether to use CRF/Viterbi decoding
+        transition_penalty: CRF transition penalty
+
+    Returns:
+        avg_loss: Average validation loss
+        head_accs: Dict of per-head accuracies (categorical heads)
+    """
+    if transition_penalty is None:
+        transition_penalty = config.TRANSITION_PENALTY
+
+    model.eval()
+    total_loss = 0.0
+    head_correct = {head: 0 for head in MIREX_HEADS_CATEGORICAL}
+    head_total = {head: 0 for head in MIREX_HEADS_CATEGORICAL}
+
+    with torch.no_grad():
+        progress_bar = tqdm(val_loader, desc="Validation", unit="batch",
+                            bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+
+        for features, labels, lengths in progress_bar:
+            features = features.to(device)
+            labels_device = {}
+            for head in MIREX_HEADS_CATEGORICAL:
+                labels_device[head] = labels[head].to(device)
+            for head in MIREX_HEADS_BINARY:
+                labels_device[head] = labels[head].to(device)
+
+            # Forward pass
+            outputs = model(features, lengths)
+
+            # Compute loss
+            loss = criterion(outputs, labels_device)
+            total_loss += loss.item()
+
+            # Compute accuracy for categorical heads
+            batch_size = features.shape[0]
+            for head in MIREX_HEADS_CATEGORICAL:
+                if use_crf:
+                    # CRF/Viterbi decoding
+                    logits = outputs[head]
+                    log_probs = torch.log_softmax(logits, dim=-1).cpu().numpy()
+
+                    predictions = torch.zeros_like(labels_device[head])
+                    for b in range(batch_size):
+                        seq_len = int(lengths[b].item()) if lengths is not None else logits.shape[1]
+                        pred_seq = viterbi_decode(log_probs[b, :seq_len], transition_penalty)
+                        predictions[b, :seq_len] = torch.from_numpy(pred_seq)
+                else:
+                    predictions = outputs[head].argmax(dim=-1)
+
+                mask = (labels_device[head] != -1)
+                correct = ((predictions == labels_device[head]) & mask).sum().item()
+                head_correct[head] += correct
+                head_total[head] += mask.sum().item()
+
+    avg_loss = total_loss / len(val_loader)
+    head_accs = {
+        head: head_correct[head] / head_total[head] if head_total[head] > 0 else 0.0
+        for head in MIREX_HEADS_CATEGORICAL
+    }
+
+    return avg_loss, head_accs
+
+
+def compute_mirex_class_weights(train_loader, head_sizes, gamma=0.5, w_max=10.0):
+    """
+    Compute class re-weighting factors for MIREX heads.
+
+    Args:
+        train_loader: Training DataLoader
+        head_sizes: Dict of number of classes per head
+        gamma: Balancing factor
+        w_max: Maximum weight clamp
+
+    Returns:
+        weights: Dict of weight tensors for categorical heads
+    """
+    print("Computing MIREX class weights from training data...")
+
+    head_counts = {head: Counter() for head in MIREX_HEADS_CATEGORICAL}
+
+    for _, labels, _ in tqdm(train_loader, desc="Counting classes"):
+        for head in MIREX_HEADS_CATEGORICAL:
+            valid_labels = labels[head][labels[head] != -1].numpy()
+            head_counts[head].update(valid_labels)
+
+    weights = {}
+    for head in MIREX_HEADS_CATEGORICAL:
+        counts = head_counts[head]
+        if not counts:
+            weights[head] = None
+            continue
+
+        max_count = max(counts.values())
+        num_classes = head_sizes[head]
+
+        weight_array = np.full(num_classes, w_max, dtype=np.float32)
+        for cls, count in counts.items():
+            w = min((count / max_count) ** (-gamma), w_max)
+            weight_array[cls] = w
+
+        weights[head] = torch.from_numpy(weight_array)
+        print(f"  {head}: {len(counts)} classes found (of {num_classes}), max_weight={weight_array.max():.2f}")
+
+    return weights
+
+
 # ===================== Evaluation Metrics (Section IV.C-D of ChordFormer paper) =====================
 
 def compute_accframe(predictions, targets, mask):
@@ -543,8 +735,8 @@ def main():
     parser.add_argument('--checkpoint_dir', type=str, default='../checkpoints',
                         help='Path to save checkpoints')
     parser.add_argument('--model_type', type=str, default='bilstm',
-                        choices=['bilstm', 'tcn', 'chordformer'],
-                        help='Model architecture: bilstm, tcn, or chordformer')
+                        choices=['bilstm', 'tcn', 'chordformer', 'mirex'],
+                        help='Model architecture: bilstm, tcn, chordformer, or mirex')
     parser.add_argument('--batch_size', type=int, default=None,
                         help='Batch size (default: 24 for chordformer, 64 for legacy). LR auto-scales with batch size.')
     parser.add_argument('--epochs', type=int, default=100,
@@ -767,6 +959,199 @@ def main():
             json.dump(test_results, f, indent=2)
 
         return  # Exit after ChordFormer training
+
+    # ===================== MIREX Training Path =====================
+    if args.model_type == 'mirex':
+        print("Loading MIREX data...")
+        train_loader, val_loader, test_loader, head_sizes = get_mirex_dataloaders(
+            args.features_dir,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            sequence_length=args.sequence_length,
+            augment_train=not args.no_augment,
+            noise_prob=config.AUGMENT_NOISE_PROB,
+            time_stretch_prob=config.AUGMENT_TIME_STRETCH_PROB
+        )
+
+        # Create MIREX model
+        model_config = {
+            'n_bins': config.N_BINS_CHORDFORMER,
+            'bins_per_octave': config.BINS_PER_OCTAVE_CHORDFORMER,
+            'd_model': args.hidden_size,
+            'n_heads': config.CONFORMER_HEADS,
+            'd_ff': config.CONFORMER_FF_DIM,
+            'n_layers': config.CONFORMER_LAYERS,
+            'conv_kernel_size': config.CONFORMER_CONV_KERNEL,
+            'dropout': args.dropout,
+            'octavewise_n_filters': config.OCTAVEWISE_N_FILTERS,
+            'num_keys': config.MIREX_NUM_KEYS,
+            'num_degrees': config.MIREX_NUM_DEGREES,
+            'num_bass': config.MIREX_NUM_BASS,
+            'num_pitches': config.MIREX_NUM_PITCHES
+        }
+
+        print(f"Creating MIREX ChordFormer model...")
+        print(f"  Conformer dim: {args.hidden_size}")
+        print(f"  OctavewiseConv filters: {config.OCTAVEWISE_N_FILTERS}")
+        print(f"  Output heads: key={config.MIREX_NUM_KEYS}, degree={config.MIREX_NUM_DEGREES}, bass={config.MIREX_NUM_BASS}")
+
+        model = MIREXChordFormerModel(
+            n_bins=config.N_BINS_CHORDFORMER,
+            d_model=args.hidden_size,
+            n_heads=config.CONFORMER_HEADS,
+            d_ff=config.CONFORMER_FF_DIM,
+            n_layers=config.CONFORMER_LAYERS,
+            conv_kernel_size=config.CONFORMER_CONV_KERNEL,
+            dropout=args.dropout,
+            octavewise_n_filters=config.OCTAVEWISE_N_FILTERS,
+            num_keys=config.MIREX_NUM_KEYS,
+            num_degrees=config.MIREX_NUM_DEGREES,
+            num_bass=config.MIREX_NUM_BASS,
+            num_pitches=config.MIREX_NUM_PITCHES
+        )
+        model = model.to(device)
+
+        # Count parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        print(f"Total parameters: {total_params:,}")
+
+        # Compute class weights for re-weighting (categorical heads only)
+        class_weights = compute_mirex_class_weights(
+            train_loader,
+            head_sizes=head_sizes,
+            gamma=config.REWEIGHT_GAMMA,
+            w_max=config.REWEIGHT_MAX
+        )
+        # Move weights to device
+        for head in class_weights:
+            if class_weights[head] is not None:
+                class_weights[head] = class_weights[head].to(device)
+
+        # Create MIREX loss
+        criterion = MIREXLoss(
+            class_weights=class_weights,
+            ce_weight=config.MIREX_CE_WEIGHT,
+            bce_weight=config.MIREX_BCE_WEIGHT
+        )
+
+        # AdamW optimizer (as per MIREX paper)
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=args.lr,
+            weight_decay=config.WEIGHT_DECAY
+        )
+
+        # LR scheduler: reduce by 90% after patience epochs
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=config.LR_SCHEDULER_FACTOR,
+            patience=config.LR_SCHEDULER_PATIENCE,
+            min_lr=config.LR_SCHEDULER_MIN_LR
+        )
+
+        # Mixed precision helper
+        amp = AMPHelper(enabled=args.use_amp) if args.use_amp else None
+
+        # Training loop for MIREX
+        best_val_acc = 0.0
+        epochs_without_improvement = 0
+        training_history = []
+
+        print(f"\nStarting MIREX training for {args.epochs} epochs...")
+        for epoch in range(args.epochs):
+            print(f"\nEpoch {epoch+1}/{args.epochs}")
+
+            # Train
+            train_loss, train_accs = train_epoch_mirex(
+                model, train_loader, criterion, optimizer, device,
+                max_grad_norm=config.MAX_GRAD_NORM,
+                amp=amp
+            )
+
+            # Validate
+            val_loss, val_accs = validate_mirex(model, val_loader, criterion, device)
+
+            # Print metrics
+            print(f"Train Loss: {train_loss:.4f}")
+            print(f"  Train Accs: key={train_accs['key']:.4f}, degree={train_accs['degree']:.4f}, bass={train_accs['bass']:.4f}")
+            print(f"Val Loss: {val_loss:.4f}")
+            print(f"  Val Accs: key={val_accs['key']:.4f}, degree={val_accs['degree']:.4f}, bass={val_accs['bass']:.4f}")
+
+            # Use degree accuracy as main metric (most important for chord quality)
+            val_acc = val_accs['degree']
+
+            # Learning rate scheduling
+            scheduler.step(val_loss)
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"Learning rate: {current_lr:.6f}")
+
+            # Check for LR-based stopping
+            if current_lr < config.LR_SCHEDULER_MIN_LR:
+                print(f"Learning rate below minimum ({config.LR_SCHEDULER_MIN_LR}), stopping training")
+                break
+
+            # Save training history
+            training_history.append({
+                'epoch': epoch + 1,
+                'train_loss': train_loss,
+                'train_accs': train_accs,
+                'val_loss': val_loss,
+                'val_accs': val_accs,
+                'lr': current_lr
+            })
+
+            # Save best model
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                epochs_without_improvement = 0
+                save_checkpoint(
+                    model, optimizer, epoch, val_acc,
+                    checkpoint_dir / 'best_model.pth',
+                    model_type='mirex',
+                    model_config=model_config
+                )
+                print(f"New best degree accuracy: {val_acc:.4f}")
+            else:
+                epochs_without_improvement += 1
+                print(f"No improvement for {epochs_without_improvement} epoch(s)")
+
+            # Early stopping
+            if epochs_without_improvement >= args.early_stopping_patience:
+                print(f"\nEarly stopping triggered after {epoch+1} epochs")
+                break
+
+        # Save final model
+        save_checkpoint(
+            model, optimizer, epoch, val_acc,
+            checkpoint_dir / 'final_model.pth',
+            model_type='mirex',
+            model_config=model_config
+        )
+
+        # Save training history
+        with open(checkpoint_dir / 'training_history.json', 'w') as f:
+            json.dump(training_history, f, indent=2)
+
+        print(f"\nTraining complete!")
+        print(f"Best degree accuracy: {best_val_acc:.4f}")
+
+        # Evaluate on test set
+        print("\nEvaluating on test set...")
+        test_loss, test_accs = validate_mirex(model, test_loader, criterion, device)
+        print(f"Test Loss: {test_loss:.4f}")
+        print(f"Test Accs: key={test_accs['key']:.4f}, degree={test_accs['degree']:.4f}, bass={test_accs['bass']:.4f}")
+
+        # Save test results
+        test_results = {
+            'test_loss': test_loss,
+            'test_accs': test_accs,
+            'best_val_acc': best_val_acc
+        }
+        with open(checkpoint_dir / 'test_results.json', 'w') as f:
+            json.dump(test_results, f, indent=2)
+
+        return  # Exit after MIREX training
 
     # ===================== Legacy Training Path (BiLSTM/TCN) =====================
     print("Loading data...")

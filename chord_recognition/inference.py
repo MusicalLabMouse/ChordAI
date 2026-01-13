@@ -11,8 +11,8 @@ import librosa
 import warnings
 from pathlib import Path
 
-from model import ChordRecognitionModel, ChordRecognitionModelTCN, ChordFormerModel
-from dataset import CHORDFORMER_HEADS
+from model import ChordRecognitionModel, ChordRecognitionModelTCN, ChordFormerModel, MIREXChordFormerModel
+from dataset import CHORDFORMER_HEADS, MIREX_HEADS_CATEGORICAL, MIREX_HEADS_BINARY
 import config
 
 
@@ -33,7 +33,24 @@ def load_model(checkpoint_path, device='cpu'):
     num_classes = checkpoint.get('num_classes', 25)
     hidden_size = checkpoint.get('hidden_size', 256)
 
-    if model_type == 'chordformer':
+    if model_type == 'mirex':
+        # MIREX degree-based model
+        model_config = checkpoint.get('config', {})
+        model = MIREXChordFormerModel(
+            n_bins=model_config.get('n_bins', config.N_BINS_CHORDFORMER),
+            d_model=model_config.get('d_model', config.CONFORMER_DIM),
+            n_heads=model_config.get('n_heads', config.CONFORMER_HEADS),
+            d_ff=model_config.get('d_ff', config.CONFORMER_FF_DIM),
+            n_layers=model_config.get('n_layers', config.CONFORMER_LAYERS),
+            conv_kernel_size=model_config.get('conv_kernel_size', config.CONFORMER_CONV_KERNEL),
+            dropout=0.0,
+            octavewise_n_filters=model_config.get('octavewise_n_filters', config.OCTAVEWISE_N_FILTERS),
+            num_keys=model_config.get('num_keys', config.MIREX_NUM_KEYS),
+            num_degrees=model_config.get('num_degrees', config.MIREX_NUM_DEGREES),
+            num_bass=model_config.get('num_bass', config.MIREX_NUM_BASS),
+            num_pitches=model_config.get('num_pitches', config.MIREX_NUM_PITCHES)
+        )
+    elif model_type == 'chordformer':
         model_config = checkpoint.get('config', {})
         model = ChordFormerModel(
             n_bins=model_config.get('n_bins', config.N_BINS_CHORDFORMER),
@@ -309,6 +326,226 @@ def reconstruct_chord_label(root_triad_idx, bass_idx, seventh_idx, ninth_idx, el
     return chord
 
 
+# =============================================================================
+# MIREX 2025 Inference Functions
+# =============================================================================
+
+def intervals_to_quality(intervals_binary):
+    """
+    Convert 12-dim binary interval vector to chord quality string.
+
+    This is the reverse mapping for inference - converts predicted pitch vectors
+    back to chord quality names.
+
+    Args:
+        intervals_binary: [12] binary array where 1 = interval present
+
+    Returns:
+        Chord quality string (e.g., 'maj7', 'min', 'dim')
+
+    Examples:
+        [1,0,0,0,1,0,0,1,0,0,0,0] -> 'maj'  (P1, M3, P5)
+        [1,0,0,1,0,0,0,1,0,0,0,0] -> 'min'  (P1, m3, P5)
+        [1,0,0,1,0,0,1,0,0,0,0,0] -> 'dim'  (P1, m3, d5)
+        [1,0,0,0,1,0,0,1,0,0,1,0] -> '7'    (P1, M3, P5, m7)
+    """
+    # Extract active interval indices
+    if isinstance(intervals_binary, np.ndarray):
+        active_intervals = tuple(i for i, v in enumerate(intervals_binary) if v > 0.5)
+    else:
+        active_intervals = tuple(i for i, v in enumerate(intervals_binary) if v > 0.5)
+
+    # Direct lookup
+    if active_intervals in config.INTERVAL_TO_QUALITY:
+        return config.INTERVAL_TO_QUALITY[active_intervals]
+
+    # Fuzzy matching for close matches (handles prediction noise)
+    best_match = 'maj'  # default
+    best_score = 0
+    for pattern, quality in config.INTERVAL_TO_QUALITY.items():
+        # Count matching intervals
+        score = sum(1 for i in pattern if i in active_intervals)
+        if score > best_score:
+            best_score = score
+            best_match = quality
+
+    return best_match
+
+
+def degree_to_absolute_root(key, degree):
+    """
+    Convert key and scale degree to absolute root note.
+
+    Uses practical chord notation - no theoretical spellings like E#, Fb, B#, Cb.
+    These don't exist in real chord symbols!
+
+    Args:
+        key: Key string (e.g., 'C', 'F#', 'Bb') or key index (0-12)
+        degree: Scale degree string (e.g., 'I', '#IV', 'bVII') or degree index (0-17)
+
+    Returns:
+        Absolute root note using practical spelling (C, C#, Db, D, etc.)
+
+    Examples:
+        degree_to_absolute_root('C', 'I')    -> 'C'
+        degree_to_absolute_root('C', 'V')    -> 'G'
+        degree_to_absolute_root('B', '#IV')  -> 'F'   (NOT E# - that doesn't exist!)
+        degree_to_absolute_root('Gb', 'VII') -> 'F'
+        degree_to_absolute_root('G', 'IV')   -> 'C'
+    """
+    # Handle indices
+    if isinstance(key, int):
+        if key == 0:
+            return 'N'
+        key = config.SHARP_NAMES[key - 1] if key <= 12 else 'C'
+
+    if isinstance(degree, int):
+        if degree == 0 or degree >= len(config.SCALE_DEGREES):
+            return 'N'
+        degree = config.SCALE_DEGREES[degree]
+
+    if degree == 'N' or key is None:
+        return 'N'
+
+    # Get key pitch class
+    key_base = key.replace('b', '').replace('#', '')[0]
+    if key_base not in config.MIREX_ROOT_TO_IDX:
+        return 'N'
+
+    key_pitch = config.MIREX_ROOT_TO_IDX[key_base]
+    if '#' in key:
+        key_pitch = (key_pitch + 1) % 12
+    elif 'b' in key:
+        key_pitch = (key_pitch - 1) % 12
+
+    # Get semitone offset from degree
+    semitones = config.DEGREE_SEMITONES.get(degree)
+    if semitones is None:
+        return 'N'
+
+    # Compute target pitch class
+    target_pitch = (key_pitch + semitones) % 12
+
+    # Use key signature to determine sharp vs flat spelling
+    # Sharp keys (G, D, A, E, B, F#) -> use sharp names
+    # Flat keys (F, Bb, Eb, Ab, Db, Gb) -> use flat names
+    key_sharps = config.KEY_SIGNATURES.get(key, 0)
+    if key_sharps >= 0:
+        return config.SHARP_NAMES[target_pitch]
+    else:
+        return config.FLAT_NAMES[target_pitch]
+
+
+def decode_mirex_output(outputs, use_crf=True, transition_penalty=1.0):
+    """
+    Decode MIREX model's output into chord labels.
+
+    Combines key, degree, and pitch vectors to reconstruct full chord symbols
+    with proper enharmonic spelling.
+
+    Args:
+        outputs: Dict of logits for each head
+        use_crf: Whether to apply CRF/Viterbi decoding
+        transition_penalty: CRF transition penalty
+
+    Returns:
+        chord_labels: List of chord label strings
+    """
+    if use_crf:
+        # Apply Viterbi decoding to categorical heads
+        key_logits = outputs['key'].squeeze(0).cpu().numpy()
+        key_log_probs = logits_to_log_probs(key_logits)
+        key_preds = viterbi_decode(key_log_probs, transition_penalty)
+
+        degree_logits = outputs['degree'].squeeze(0).cpu().numpy()
+        degree_log_probs = logits_to_log_probs(degree_logits)
+        degree_preds = viterbi_decode(degree_log_probs, transition_penalty)
+
+        bass_logits = outputs['bass'].squeeze(0).cpu().numpy()
+        bass_log_probs = logits_to_log_probs(bass_logits)
+        bass_preds = viterbi_decode(bass_log_probs, transition_penalty)
+
+        # Binary heads use sigmoid + threshold
+        pitches_abs = torch.sigmoid(outputs['pitches_abs']).squeeze(0).cpu().numpy()
+        intervals_root = torch.sigmoid(outputs['intervals_root']).squeeze(0).cpu().numpy()
+        intervals_bass = torch.sigmoid(outputs['intervals_bass']).squeeze(0).cpu().numpy()
+    else:
+        # Simple argmax for categorical heads
+        key_preds = outputs['key'].argmax(dim=-1).squeeze(0).cpu().numpy()
+        degree_preds = outputs['degree'].argmax(dim=-1).squeeze(0).cpu().numpy()
+        bass_preds = outputs['bass'].argmax(dim=-1).squeeze(0).cpu().numpy()
+
+        # Binary heads use sigmoid + threshold
+        pitches_abs = torch.sigmoid(outputs['pitches_abs']).squeeze(0).cpu().numpy()
+        intervals_root = torch.sigmoid(outputs['intervals_root']).squeeze(0).cpu().numpy()
+        intervals_bass = torch.sigmoid(outputs['intervals_bass']).squeeze(0).cpu().numpy()
+
+    # Reconstruct chord labels
+    chord_labels = []
+    for i in range(len(key_preds)):
+        chord = reconstruct_mirex_chord_label(
+            key_preds[i],
+            degree_preds[i],
+            bass_preds[i],
+            intervals_root[i]
+        )
+        chord_labels.append(chord)
+
+    return chord_labels
+
+
+def reconstruct_mirex_chord_label(key_idx, degree_idx, bass_idx, intervals_root):
+    """
+    Reconstruct chord label from MIREX predictions.
+
+    Args:
+        key_idx: Key index (0=N, 1-12 = C through B)
+        degree_idx: Scale degree index (0-17)
+        bass_idx: Bass note index (0=N, 1-12 = C through B)
+        intervals_root: [12] binary array of intervals from root
+
+    Returns:
+        Chord label string (e.g., "C:maj7", "G:min/B")
+    """
+    # Handle no-chord
+    if degree_idx == 0:
+        return 'N'
+
+    # Get key name
+    key = config.SHARP_NAMES[key_idx - 1] if key_idx > 0 and key_idx <= 12 else 'C'
+
+    # Get degree name
+    degree = config.SCALE_DEGREES[degree_idx] if degree_idx < len(config.SCALE_DEGREES) else 'I'
+
+    # Convert degree to absolute root with enharmonic spelling
+    root = degree_to_absolute_root(key, degree)
+
+    if root == 'N':
+        return 'N'
+
+    # Determine chord quality from intervals
+    quality = intervals_to_quality(intervals_root)
+
+    # Build chord label
+    if quality == 'maj':
+        chord = f"{root}:maj"
+    elif quality == 'min':
+        chord = f"{root}:min"
+    else:
+        chord = f"{root}:{quality}"
+
+    # Add bass note if different from root
+    if bass_idx > 0 and bass_idx <= 12:
+        bass_note = config.SHARP_NAMES[bass_idx - 1]
+        # Check if bass is different from root (normalize for comparison)
+        root_normalized = root.replace('#', '').replace('b', '')[0]
+        bass_normalized = bass_note.replace('#', '').replace('b', '')[0]
+        if bass_note != root and bass_normalized != root_normalized:
+            chord = f"{chord}/{bass_note}"
+
+    return chord
+
+
 def frames_to_annotations(chord_labels, hop_length=config.HOP_LENGTH, sr=config.SAMPLE_RATE):
     """
     Convert frame-level chord predictions to time-aligned annotations.
@@ -352,18 +589,20 @@ def write_lab_file(annotations, output_path):
 
 
 def predict_chords(model, features, normalization, model_type, device='cpu',
-                   use_crf=True, transition_penalty=1.0):
+                   use_crf=True, transition_penalty=1.0, chunk_size=1000, overlap=100):
     """
-    Run inference on audio features.
+    Run inference on audio features with chunked processing for long sequences.
 
     Args:
         model: Trained model
         features: CQT features [n_frames, n_bins]
         normalization: Dict with 'mean' and 'std'
-        model_type: 'chordformer', 'bilstm', or 'tcn'
+        model_type: 'chordformer', 'mirex', 'bilstm', or 'tcn'
         device: Device for inference
-        use_crf: Whether to use CRF decoding (ChordFormer only)
+        use_crf: Whether to use CRF decoding (ChordFormer/MIREX only)
         transition_penalty: CRF transition penalty
+        chunk_size: Maximum frames per chunk (default 1000, matches training)
+        overlap: Overlap between chunks for smooth transitions (default 100)
 
     Returns:
         annotations: List of (start, end, chord) tuples
@@ -373,17 +612,40 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
     std = np.array(normalization['std'], dtype=np.float32)
     features_norm = (features - mean) / std
 
-    # Convert to tensor
-    x = torch.from_numpy(features_norm).float().unsqueeze(0).to(device)
+    n_frames = features_norm.shape[0]
 
     # Run inference
     with torch.no_grad():
-        if model_type == 'chordformer':
-            outputs = model(x)
+        if model_type == 'mirex':
+            # MIREX degree-based model
+            if n_frames <= chunk_size:
+                x = torch.from_numpy(features_norm).float().unsqueeze(0).to(device)
+                outputs = model(x)
+            else:
+                outputs = _chunked_mirex_inference(
+                    model, features_norm, device, chunk_size, overlap
+                )
+
+            chord_labels = decode_mirex_output(
+                outputs, use_crf=use_crf, transition_penalty=transition_penalty
+            )
+        elif model_type == 'chordformer':
+            # Use chunked inference for long sequences to avoid memory issues
+            if n_frames <= chunk_size:
+                # Short sequence - process directly
+                x = torch.from_numpy(features_norm).float().unsqueeze(0).to(device)
+                outputs = model(x)
+            else:
+                # Long sequence - process in overlapping chunks
+                outputs = _chunked_chordformer_inference(
+                    model, features_norm, device, chunk_size, overlap
+                )
+
             chord_labels = decode_chordformer_output(
                 outputs, use_crf=use_crf, transition_penalty=transition_penalty
             )
         else:
+            x = torch.from_numpy(features_norm).float().unsqueeze(0).to(device)
             if model_type == 'bilstm':
                 lengths = torch.tensor([x.shape[1]], dtype=torch.long)
                 logits = model(x, lengths)
@@ -400,6 +662,128 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
     annotations = frames_to_annotations(chord_labels)
 
     return annotations
+
+
+def _chunked_mirex_inference(model, features_norm, device, chunk_size, overlap):
+    """
+    Process long sequences in overlapping chunks for MIREX model.
+
+    Args:
+        model: MIREX model
+        features_norm: Normalized features [n_frames, n_bins]
+        device: Device for inference
+        chunk_size: Frames per chunk
+        overlap: Overlap between chunks
+
+    Returns:
+        outputs: Dict of concatenated outputs for each head
+    """
+    n_frames = features_norm.shape[0]
+    step = chunk_size - overlap
+
+    # Initialize output storage
+    head_names = ['key', 'degree', 'bass', 'pitches_abs', 'intervals_root', 'intervals_bass']
+    all_outputs = {name: [] for name in head_names}
+
+    start = 0
+    while start < n_frames:
+        end = min(start + chunk_size, n_frames)
+        chunk = features_norm[start:end]
+
+        x = torch.from_numpy(chunk).float().unsqueeze(0).to(device)
+        chunk_outputs = model(x)
+
+        # Determine which frames to keep
+        if start == 0:
+            keep_start = 0
+        else:
+            keep_start = overlap
+
+        keep_end = end - start
+
+        # Extract frames to keep
+        for name in head_names:
+            kept = chunk_outputs[name][:, keep_start:keep_end].cpu()
+            all_outputs[name].append(kept)
+
+        start += step
+
+    # Concatenate all chunks
+    outputs = {}
+    for name in head_names:
+        outputs[name] = torch.cat(all_outputs[name], dim=1).to(device)
+
+    return outputs
+
+
+def _chunked_chordformer_inference(model, features_norm, device, chunk_size, overlap):
+    """
+    Process long sequences in overlapping chunks to avoid memory issues.
+
+    The relative positional encoding creates [seq_len, seq_len, d_model] tensors,
+    which becomes prohibitively large for long sequences (e.g., 33000^2 * 256 * 4 bytes = ~1TB).
+
+    Args:
+        model: ChordFormer model
+        features_norm: Normalized features [n_frames, n_bins]
+        device: Device for inference
+        chunk_size: Frames per chunk
+        overlap: Overlap between chunks
+
+    Returns:
+        outputs: Dict of concatenated logits for each head
+    """
+    n_frames = features_norm.shape[0]
+    step = chunk_size - overlap
+
+    # Initialize output storage for each head
+    head_names = ['root_triad', 'bass', '7th', '9th', '11th', '13th']
+    all_outputs = {name: [] for name in head_names}
+
+    # Track which frames we've processed (for handling overlaps)
+    processed_frames = 0
+
+    chunk_idx = 0
+    start = 0
+    while start < n_frames:
+        end = min(start + chunk_size, n_frames)
+        chunk = features_norm[start:end]
+
+        # Convert to tensor
+        x = torch.from_numpy(chunk).float().unsqueeze(0).to(device)
+
+        # Run inference on chunk
+        chunk_outputs = model(x)
+
+        # Determine which frames to keep from this chunk
+        if start == 0:
+            # First chunk: keep all frames
+            keep_start = 0
+        else:
+            # Later chunks: skip the overlap region (use predictions from previous chunk)
+            keep_start = overlap
+
+        if end == n_frames:
+            # Last chunk: keep to the end
+            keep_end = end - start
+        else:
+            # Middle chunks: keep up to the end
+            keep_end = end - start
+
+        # Extract the frames we want to keep
+        for name in head_names:
+            kept_logits = chunk_outputs[name][:, keep_start:keep_end, :].cpu()
+            all_outputs[name].append(kept_logits)
+
+        chunk_idx += 1
+        start += step
+
+    # Concatenate all chunks
+    outputs = {}
+    for name in head_names:
+        outputs[name] = torch.cat(all_outputs[name], dim=1).to(device)
+
+    return outputs
 
 
 def main():

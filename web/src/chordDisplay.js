@@ -1,197 +1,172 @@
 /**
  * Chord Display Module
- * Handles UI updates and audio visualization
+ * Handles UI updates for chord detection display
  */
 
 export class ChordDisplay {
-    constructor() {
-        this.chordNameEl = document.getElementById('chordName');
-        this.chordTypeEl = document.getElementById('chordType');
-        this.chordHistoryEl = document.getElementById('chordHistory');
-        this.canvas = document.getElementById('waveform');
-        this.ctx = this.canvas.getContext('2d');
+  constructor() {
+    // DOM elements
+    this.statusDot = document.getElementById('statusDot');
+    this.statusText = document.getElementById('statusText');
+    this.chordDisplay = document.getElementById('chordDisplay');
+    this.confidenceValue = document.getElementById('confidenceValue');
+    this.errorMessage = document.getElementById('errorMessage');
+    this.startBtn = document.getElementById('startBtn');
+    this.stopBtn = document.getElementById('stopBtn');
 
-        this.currentChord = '-';
-        this.chordHistory = [];
-        this.maxHistory = 8;
+    // Current state
+    this.currentChord = '-';
+    this.currentConfidence = 0;
+  }
 
-        this.analyser = null;
-        this.animationId = null;
-        this.dataArray = null;
+  /**
+   * Set status indicator
+   * @param {string} status - 'loading', 'ready', 'listening', 'error'
+   * @param {string} message - Status message to display
+   */
+  setStatus(status, message) {
+    // Remove all status classes
+    this.statusDot.classList.remove('loading', 'ready', 'listening', 'error');
 
-        this.setupCanvas();
+    // Add new status class
+    this.statusDot.classList.add(status);
+
+    // Update status text
+    this.statusText.textContent = message;
+  }
+
+  /**
+   * Update the chord display
+   * @param {string} chord - Chord name to display
+   * @param {number} confidence - Confidence value (0-1)
+   */
+  updateChord(chord, confidence) {
+    // Format chord for display
+    const displayChord = this.formatChordDisplay(chord);
+
+    // Only update if chord changed
+    if (displayChord !== this.currentChord) {
+      this.currentChord = displayChord;
+      this.chordDisplay.textContent = displayChord;
+
+      // Update styling based on chord
+      if (displayChord === '-' || displayChord === 'N') {
+        this.chordDisplay.classList.add('no-chord');
+      } else {
+        this.chordDisplay.classList.remove('no-chord');
+      }
+
+      // Add a subtle animation on chord change
+      this.chordDisplay.style.transform = 'scale(1.05)';
+      setTimeout(() => {
+        this.chordDisplay.style.transform = 'scale(1)';
+      }, 100);
     }
 
-    setupCanvas() {
-        // Set canvas size
-        const rect = this.canvas.parentElement.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
+    // Update confidence
+    this.currentConfidence = confidence;
+    const confidencePercent = Math.round(confidence * 100);
+    this.confidenceValue.textContent = `${confidencePercent}%`;
+
+    // Adjust opacity based on confidence
+    const opacity = 0.5 + (confidence * 0.5);
+    this.chordDisplay.style.opacity = opacity;
+  }
+
+  /**
+   * Format chord for cleaner display
+   */
+  formatChordDisplay(chord) {
+    if (!chord || chord === 'N') {
+      return '-';
     }
 
-    updateChord(chordName, type = null, confidence = null) {
-        // Only update if chord changed
-        if (chordName !== this.currentChord) {
-            this.currentChord = chordName;
+    // Remove colon notation for cleaner look
+    let display = chord.replace(':', '');
 
-            // Add changing animation
-            this.chordNameEl.classList.add('changing');
-            this.chordNameEl.textContent = chordName;
+    // Keep it simple - just show the chord name
+    return display;
+  }
 
-            // Remove animation class after transition
-            setTimeout(() => {
-                this.chordNameEl.classList.remove('changing');
-            }, 100);
+  /**
+   * Show error message
+   * @param {string} message - Error message
+   */
+  showError(message) {
+    this.errorMessage.textContent = message;
+    this.errorMessage.classList.add('visible');
+    this.setStatus('error', 'Error');
+  }
 
-            // Add to history
-            if (chordName !== '-') {
-                this.addToHistory(chordName);
-            }
-        }
+  /**
+   * Hide error message
+   */
+  hideError() {
+    this.errorMessage.classList.remove('visible');
+  }
 
-        // Update type/status text
-        if (type !== null) {
-            this.chordTypeEl.textContent = type;
-        } else if (confidence !== null) {
-            const confPercent = (confidence * 100).toFixed(0);
-            this.chordTypeEl.textContent = `Confidence: ${confPercent}%`;
-        }
+  /**
+   * Enable start button
+   */
+  enableStart() {
+    this.startBtn.disabled = false;
+  }
 
-        // Update visual feedback based on confidence
-        if (confidence !== null) {
-            this.updateConfidenceVisual(confidence);
-        }
-    }
+  /**
+   * Disable start button
+   */
+  disableStart() {
+    this.startBtn.disabled = true;
+  }
 
-    updateConfidenceVisual(confidence) {
-        // Adjust chord display opacity/color based on confidence
-        const opacity = 0.5 + confidence * 0.5;
-        const hue = 160 + (1 - confidence) * 40;  // Green to yellow
-        this.chordNameEl.style.color = `hsla(${hue}, 100%, 75%, ${opacity})`;
-    }
+  /**
+   * Enable stop button
+   */
+  enableStop() {
+    this.stopBtn.disabled = false;
+  }
 
-    addToHistory(chord) {
-        // Don't add duplicate consecutive chords
-        if (this.chordHistory.length > 0 && this.chordHistory[0] === chord) {
-            return;
-        }
+  /**
+   * Disable stop button
+   */
+  disableStop() {
+    this.stopBtn.disabled = true;
+  }
 
-        this.chordHistory.unshift(chord);
-        if (this.chordHistory.length > this.maxHistory) {
-            this.chordHistory.pop();
-        }
+  /**
+   * Set UI to listening state
+   */
+  setListening() {
+    this.setStatus('listening', 'Listening...');
+    this.disableStart();
+    this.enableStop();
+    this.hideError();
+  }
 
-        this.renderHistory();
-    }
+  /**
+   * Set UI to ready state
+   */
+  setReady() {
+    this.setStatus('ready', 'Ready');
+    this.enableStart();
+    this.disableStop();
+    this.updateChord('-', 0);
+  }
 
-    renderHistory() {
-        this.chordHistoryEl.innerHTML = this.chordHistory
-            .map((chord, i) => `<span class="history-chord">${chord}</span>`)
-            .join('');
-    }
+  /**
+   * Set UI to loading state
+   */
+  setLoading(message = 'Loading model...') {
+    this.setStatus('loading', message);
+    this.disableStart();
+    this.disableStop();
+  }
 
-    startVisualization(analyser) {
-        this.analyser = analyser;
-        this.dataArray = new Uint8Array(analyser.frequencyBinCount);
-        this.drawWaveform();
-    }
-
-    stopVisualization() {
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-
-        // Clear canvas
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    drawWaveform() {
-        if (!this.analyser) return;
-
-        this.animationId = requestAnimationFrame(() => this.drawWaveform());
-
-        // Get waveform data
-        this.analyser.getByteTimeDomainData(this.dataArray);
-
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-
-        // Clear canvas with fade effect
-        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.2)';
-        this.ctx.fillRect(0, 0, width, height);
-
-        // Draw waveform with smoother line
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeStyle = '#64ffda';
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
-        this.ctx.beginPath();
-
-        // Sample fewer points for smoother rendering
-        const step = Math.ceil(this.dataArray.length / 128);
-        const sliceWidth = width / (this.dataArray.length / step);
-        let x = 0;
-
-        for (let i = 0; i < this.dataArray.length; i += step) {
-            const v = this.dataArray[i] / 128.0;
-            const y = v * height / 2;
-
-            if (i === 0) {
-                this.ctx.moveTo(x, y);
-            } else {
-                this.ctx.lineTo(x, y);
-            }
-
-            x += sliceWidth;
-        }
-
-        this.ctx.lineTo(width, height / 2);
-        this.ctx.stroke();
-
-        // Draw center line
-        this.ctx.strokeStyle = 'rgba(100, 255, 218, 0.15)';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, height / 2);
-        this.ctx.lineTo(width, height / 2);
-        this.ctx.stroke();
-    }
-
-    drawFrequencyBars() {
-        if (!this.analyser) return;
-
-        this.animationId = requestAnimationFrame(() => this.drawFrequencyBars());
-
-        // Get frequency data
-        this.analyser.getByteFrequencyData(this.dataArray);
-
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-
-        // Clear canvas
-        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.3)';
-        this.ctx.fillRect(0, 0, width, height);
-
-        // Draw bars
-        const barCount = 64;
-        const barWidth = width / barCount;
-        const step = Math.floor(this.dataArray.length / barCount);
-
-        for (let i = 0; i < barCount; i++) {
-            const value = this.dataArray[i * step];
-            const barHeight = (value / 255) * height * 0.8;
-
-            const hue = (i / barCount) * 60 + 160;  // Cyan to green gradient
-            this.ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
-
-            this.ctx.fillRect(
-                i * barWidth,
-                height - barHeight,
-                barWidth - 1,
-                barHeight
-            );
-        }
-    }
+  /**
+   * Reset display to initial state
+   */
+  reset() {
+    this.updateChord('-', 0);
+    this.hideError();
+  }
 }
