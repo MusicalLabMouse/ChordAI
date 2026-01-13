@@ -9,7 +9,7 @@ import json
 from collections import Counter
 
 # Enable CUDA memory fragmentation optimization before importing torch
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ['PYTORCH_ALLOC_CONF'] = 'expandable_segments:True'
 
 import numpy as np
 import torch
