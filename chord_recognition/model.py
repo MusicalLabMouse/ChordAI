@@ -890,13 +890,13 @@ class OctavewiseConvModule(nn.Module):
         Output: [B, T, 256]
     """
 
-    def __init__(self, n_bins=252, bins_per_octave=36, d_model=256, n_filters=64):
+    def __init__(self, n_bins=252, bins_per_octave=36, d_model=256, n_filters=4):
         """
         Args:
             n_bins: Number of CQT frequency bins (default 252 = 7 octaves * 36)
             bins_per_octave: CQT bins per octave (default 36)
             d_model: Output dimension (default 256 per paper)
-            n_filters: Number of conv filters (default 64, not specified in paper)
+            n_filters: Number of conv filters (default 4, not specified in paper)
         """
         super().__init__()
 
@@ -975,7 +975,7 @@ class MIREXChordFormerModel(nn.Module):
         n_layers=4,
         conv_kernel_size=31,
         dropout=0.1,
-        octavewise_n_filters=64,
+        octavewise_n_filters=4,
         num_keys=13,
         num_degrees=18,
         num_bass=13,
@@ -990,7 +990,7 @@ class MIREXChordFormerModel(nn.Module):
             n_layers: Number of Conformer blocks (default 4)
             conv_kernel_size: Conformer conv kernel size (default 31)
             dropout: Dropout probability (default 0.1)
-            octavewise_n_filters: Number of filters in OctavewiseConvModule (default 64)
+            octavewise_n_filters: Number of filters in OctavewiseConvModule (default 4)
             num_keys: Number of key classes (default 13 = N + 12 keys)
             num_degrees: Number of degree classes (default 18)
             num_bass: Number of bass classes (default 13 = N + 12 notes)
