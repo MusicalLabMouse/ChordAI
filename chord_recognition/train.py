@@ -413,6 +413,10 @@ def train_epoch_mirex(model, train_loader, criterion, optimizer, device, max_gra
 
         total_loss += loss.item()
 
+        # Clear cached memory to prevent accumulation between batches
+        del outputs, loss, features, labels_device
+        torch.cuda.empty_cache()
+
     avg_loss = total_loss / len(train_loader)
     head_accs = {
         head: head_correct[head] / head_total[head] if head_total[head] > 0 else 0.0
