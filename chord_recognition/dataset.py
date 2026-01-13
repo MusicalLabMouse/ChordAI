@@ -559,6 +559,11 @@ class MIREXChordFormerDataset(Dataset):
         if random.random() < self.time_stretch_prob:
             stretch_rate = random.uniform(*self.time_stretch_range)
             features, labels = apply_time_stretch(features, labels, stretch_rate)
+            # Re-truncate if time stretching made sequence longer
+            if self.sequence_length and len(features) > self.sequence_length:
+                features = features[:self.sequence_length]
+                for head in labels:
+                    labels[head] = labels[head][:self.sequence_length]
 
         # 3. Gaussian noise - 50% probability per paper Section 3.2
         if random.random() < self.noise_prob:
