@@ -154,7 +154,7 @@ MIREX_NUM_BASS = 13          # N + 12 bass notes
 MIREX_NUM_PITCHES = 12       # 12 pitch classes (for binary vectors)
 
 # Octavewise Convolution Module - NOTE: n_filters not specified in paper, may need tuning
-OCTAVEWISE_N_FILTERS = 64    # Not specified in paper
+OCTAVEWISE_N_FILTERS = 4     # Not specified in paper - reduced for memory efficiency
 OCTAVEWISE_D_MODEL = 256     # Paper specifies 256-dim output
 
 # MIREX Loss Weights
