@@ -19,6 +19,9 @@ import torch.nn as nn
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
+# Explicitly use full float32 precision (AMP is opt-in via --use_amp flag)
+torch.set_float32_matmul_precision("highest")
+
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
