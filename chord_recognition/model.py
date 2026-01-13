@@ -940,7 +940,7 @@ class OctavewiseConvModule(nn.Module):
         x = self.linear(x)
 
         # Reshape back: [B*T, d_model] -> [B, T, d_model]
-        x = x.view(B, T, -1)
+        x = x.view(B, T, -1).contiguous()
 
         return x
 
