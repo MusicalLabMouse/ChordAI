@@ -164,7 +164,7 @@ MIREX_BCE_WEIGHT = 0.5       # Weight for binary (BCE) losses
 # Data Augmentation per MIREX paper Section 3.2
 # Paper: "each with a probability of 50%"
 AUGMENT_NOISE_PROB = 0.5              # Gaussian noise probability
-AUGMENT_TIME_STRETCH_PROB = 0.5       # Time-stretch probability
+AUGMENT_TIME_STRETCH_PROB = 0.5       # Time-stretch probability (per MIREX paper Section 3.2)
 AUGMENT_TIME_STRETCH_RANGE = (0.8, 1.2)  # Paper: "0.8x to 1.2x"
 
 # Experimental augmentation (not in MIREX paper)
