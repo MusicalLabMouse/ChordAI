@@ -1059,6 +1059,19 @@ def main():
         training_history = []
 
         print(f"\nStarting MIREX training for {args.epochs} epochs...")
+
+        # Debug: Print memory and config before training
+        print(f"\n=== DEBUG INFO ===")
+        print(f"Batch size: {args.batch_size}")
+        print(f"Sequence length: {config.SEQUENCE_LENGTH}")
+        print(f"OctavewiseConv filters: {config.OCTAVEWISE_N_FILTERS}")
+        print(f"Device: {device}")
+        if torch.cuda.is_available():
+            print(f"GPU: {torch.cuda.get_device_name(0)}")
+            print(f"Memory allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+            print(f"Memory reserved: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+        print(f"==================\n")
+
         for epoch in range(args.epochs):
             print(f"\nEpoch {epoch+1}/{args.epochs}")
 
