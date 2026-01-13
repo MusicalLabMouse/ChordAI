@@ -14,6 +14,11 @@ os.environ['PYTORCH_ALLOC_CONF'] = 'expandable_segments:True'
 import numpy as np
 import torch
 import torch.nn as nn
+
+# Disable cuDNN benchmarking to ensure consistent memory usage across GPUs
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
