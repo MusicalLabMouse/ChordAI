@@ -369,12 +369,6 @@ def train_epoch_mirex(model, train_loader, criterion, optimizer, device, max_gra
 
         optimizer.zero_grad()
 
-        # Debug: Memory before forward pass (first batch only)
-        if progress_bar.n == 0 and torch.cuda.is_available():
-            print(f"\n  [DEBUG] Before forward: allocated={torch.cuda.memory_allocated() / 1024**3:.2f} GB, "
-                  f"reserved={torch.cuda.memory_reserved() / 1024**3:.2f} GB")
-            print(f"  [DEBUG] Features shape: {features.shape}, dtype: {features.dtype}")
-
         # Forward pass with optional mixed precision
         if amp:
             with amp.autocast():
@@ -384,11 +378,6 @@ def train_epoch_mirex(model, train_loader, criterion, optimizer, device, max_gra
             outputs = model(features, lengths)
             loss = criterion(outputs, labels_device)
 
-        # Debug: Memory after forward pass (first batch only)
-        if progress_bar.n == 0 and torch.cuda.is_available():
-            print(f"  [DEBUG] After forward: allocated={torch.cuda.memory_allocated() / 1024**3:.2f} GB, "
-                  f"reserved={torch.cuda.memory_reserved() / 1024**3:.2f} GB")
-
         # Backward pass
         if amp:
             amp.backward(loss, optimizer, model, max_grad_norm)
@@ -396,11 +385,6 @@ def train_epoch_mirex(model, train_loader, criterion, optimizer, device, max_gra
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
             optimizer.step()
-
-        # Debug: Memory after backward pass (first batch only)
-        if progress_bar.n == 0 and torch.cuda.is_available():
-            print(f"  [DEBUG] After backward: allocated={torch.cuda.memory_allocated() / 1024**3:.2f} GB, "
-                  f"reserved={torch.cuda.memory_reserved() / 1024**3:.2f} GB")
 
         # Compute accuracy for categorical heads
         with torch.no_grad():
@@ -1088,18 +1072,6 @@ def main():
 
         print(f"\nStarting MIREX training for {args.epochs} epochs...")
 
-        # Debug: Print memory and config before training
-        print(f"\n=== DEBUG INFO ===")
-        print(f"Batch size: {args.batch_size}")
-        print(f"Sequence length: {config.SEQUENCE_LENGTH}")
-        print(f"OctavewiseConv filters: {config.OCTAVEWISE_N_FILTERS}")
-        print(f"Device: {device}")
-        if torch.cuda.is_available():
-            print(f"GPU: {torch.cuda.get_device_name(0)}")
-            print(f"Memory allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
-            print(f"Memory reserved: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
-        print(f"==================\n")
-
         for epoch in range(args.epochs):
             print(f"\nEpoch {epoch+1}/{args.epochs}")
 
@@ -1118,12 +1090,6 @@ def main():
             print(f"  Train Accs: key={train_accs['key']:.4f}, degree={train_accs['degree']:.4f}, bass={train_accs['bass']:.4f}")
             print(f"Val Loss: {val_loss:.4f}")
             print(f"  Val Accs: key={val_accs['key']:.4f}, degree={val_accs['degree']:.4f}, bass={val_accs['bass']:.4f}")
-
-            # Debug: GPU memory after epoch
-            if torch.cuda.is_available():
-                print(f"  GPU Memory: allocated={torch.cuda.memory_allocated() / 1024**3:.2f} GB, "
-                      f"reserved={torch.cuda.memory_reserved() / 1024**3:.2f} GB, "
-                      f"max_allocated={torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
 
             # Use degree accuracy as main metric (most important for chord quality)
             val_acc = val_accs['degree']
