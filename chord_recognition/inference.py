@@ -83,7 +83,7 @@ def load_model(checkpoint_path, device='cpu'):
 
 def extract_features(audio_path, model_type='chordformer'):
     """Extract CQT features from audio file."""
-    if model_type == 'chordformer':
+    if model_type in ('chordformer', 'mirex'):
         n_bins = config.N_BINS_CHORDFORMER
         bins_per_octave = config.BINS_PER_OCTAVE_CHORDFORMER
     else:
@@ -450,6 +450,7 @@ def decode_mirex_output(outputs, use_crf=True, transition_penalty=1.0):
 
     Returns:
         chord_labels: List of chord label strings
+        key_preds: Array of key predictions per frame (0=N, 1-12=C through B)
     """
     if use_crf:
         # Apply Viterbi decoding to categorical heads
@@ -491,7 +492,38 @@ def decode_mirex_output(outputs, use_crf=True, transition_penalty=1.0):
         )
         chord_labels.append(chord)
 
-    return chord_labels
+    return chord_labels, key_preds
+
+
+def detect_overall_key(key_preds):
+    """
+    Detect the overall key of a song from frame-level key predictions.
+
+    Uses majority voting across frames, excluding 'N' (no key) predictions.
+
+    Args:
+        key_preds: Array of key predictions per frame (0=N, 1-12=C through B)
+
+    Returns:
+        key_name: Detected key name (e.g., 'C', 'G#') or 'N' if undetermined
+    """
+    # Filter out 'N' predictions (index 0)
+    valid_keys = key_preds[key_preds > 0]
+
+    if len(valid_keys) == 0:
+        return 'N'
+
+    # Count occurrences of each key
+    from collections import Counter
+    key_counts = Counter(valid_keys)
+
+    # Get the most common key
+    most_common_key_idx = key_counts.most_common(1)[0][0]
+
+    # Convert to key name (1-12 maps to C through B)
+    key_name = config.SHARP_NAMES[most_common_key_idx - 1]
+
+    return key_name
 
 
 def reconstruct_mirex_chord_label(key_idx, degree_idx, bass_idx, intervals_root):
@@ -581,9 +613,17 @@ def frames_to_annotations(chord_labels, hop_length=config.HOP_LENGTH, sr=config.
     return annotations
 
 
-def write_lab_file(annotations, output_path):
-    """Write annotations to .lab file format."""
+def write_lab_file(annotations, output_path, detected_key=None):
+    """Write annotations to .lab file format.
+
+    Args:
+        annotations: List of (start, end, chord) tuples
+        output_path: Path to output file
+        detected_key: Optional detected key to include as header comment
+    """
     with open(output_path, 'w') as f:
+        if detected_key:
+            f.write(f"# Key: {detected_key}\n")
         for start, end, chord in annotations:
             f.write(f"{start:.6f}\t{end:.6f}\t{chord}\n")
 
@@ -606,6 +646,7 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
 
     Returns:
         annotations: List of (start, end, chord) tuples
+        detected_key: Detected key name (e.g., 'C', 'G#') or None for non-MIREX models
     """
     # Normalize features
     mean = np.array(normalization['mean'], dtype=np.float32)
@@ -613,6 +654,7 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
     features_norm = (features - mean) / std
 
     n_frames = features_norm.shape[0]
+    detected_key = None
 
     # Run inference
     with torch.no_grad():
@@ -626,9 +668,10 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
                     model, features_norm, device, chunk_size, overlap
                 )
 
-            chord_labels = decode_mirex_output(
+            chord_labels, key_preds = decode_mirex_output(
                 outputs, use_crf=use_crf, transition_penalty=transition_penalty
             )
+            detected_key = detect_overall_key(key_preds)
         elif model_type == 'chordformer':
             # Use chunked inference for long sequences to avoid memory issues
             if n_frames <= chunk_size:
@@ -661,7 +704,7 @@ def predict_chords(model, features, normalization, model_type, device='cpu',
     # Convert to annotations
     annotations = frames_to_annotations(chord_labels)
 
-    return annotations
+    return annotations, detected_key
 
 
 def _chunked_mirex_inference(model, features_norm, device, chunk_size, overlap):
@@ -829,13 +872,17 @@ def main():
 
     # Predict chords
     print("Predicting chords...")
-    annotations = predict_chords(
+    annotations, detected_key = predict_chords(
         model, features, normalization, model_type, args.device,
         use_crf=not args.no_crf, transition_penalty=args.transition_penalty
     )
 
+    # Display detected key
+    if detected_key:
+        print(f"\nDetected key: {detected_key}")
+
     # Write output
-    write_lab_file(annotations, output_path)
+    write_lab_file(annotations, output_path, detected_key=detected_key)
     print(f"\nChord annotations written to: {output_path}")
     print(f"  {len(annotations)} chord segments")
 

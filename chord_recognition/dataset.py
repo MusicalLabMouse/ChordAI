@@ -9,6 +9,7 @@ import json
 import random
 import numpy as np
 import torch
+import torchaudio.transforms as T
 from torch.utils.data import Dataset
 from pathlib import Path
 
@@ -565,7 +566,25 @@ class MIREXChordFormerDataset(Dataset):
                 for head in labels:
                     labels[head] = labels[head][:self.sequence_length]
 
-        # 3. Gaussian noise - 50% probability per paper Section 3.2
+        # 3. SpecAugment (frequency and time masking) - per paper Section 3.2
+        # Paper: "apply SpecAugment from torchaudio"
+        # Convert to tensor for torchaudio: [T, F] -> [1, F, T]
+        features_tensor = torch.from_numpy(features).unsqueeze(0).permute(0, 2, 1)
+
+        # Frequency masking (50% probability)
+        if random.random() < 0.5:
+            freq_mask = T.FrequencyMasking(freq_mask_param=27)
+            features_tensor = freq_mask(features_tensor)
+
+        # Time masking (50% probability)
+        if random.random() < 0.5:
+            time_mask = T.TimeMasking(time_mask_param=100)
+            features_tensor = time_mask(features_tensor)
+
+        # Convert back: [1, F, T] -> [T, F]
+        features = features_tensor.permute(0, 2, 1).squeeze(0).numpy()
+
+        # 4. Gaussian noise - 50% probability per paper Section 3.2
         if random.random() < self.noise_prob:
             noise_std = 0.1
             noise = np.random.normal(0, noise_std, features.shape).astype(np.float32)

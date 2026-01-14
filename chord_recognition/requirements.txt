@@ -1,5 +1,6 @@
 # Core deep learning
-torch>=2.0.0
+torch>=2.9.1
+torchaudio>=2.0.0
 numpy>=1.21.0
 
 # Audio processing

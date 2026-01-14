@@ -154,12 +154,12 @@ MIREX_NUM_BASS = 13          # N + 12 bass notes
 MIREX_NUM_PITCHES = 12       # 12 pitch classes (for binary vectors)
 
 # Octavewise Convolution Module - NOTE: n_filters not specified in paper, may need tuning
-OCTAVEWISE_N_FILTERS = 4     # Not specified in paper - reduced for memory efficiency
+OCTAVEWISE_N_FILTERS = 16    # Increased from 4 for better feature extraction capacity
 OCTAVEWISE_D_MODEL = 256     # Paper specifies 256-dim output
 
 # MIREX Loss Weights
 MIREX_CE_WEIGHT = 1.0        # Weight for categorical (CrossEntropy) losses
-MIREX_BCE_WEIGHT = 0.5       # Weight for binary (BCE) losses
+MIREX_BCE_WEIGHT = 1.0       # Weight for binary (BCE) losses - balanced with CE for better interval learning
 
 # Data Augmentation per MIREX paper Section 3.2
 # Paper: "each with a probability of 50%"
