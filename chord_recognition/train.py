@@ -778,9 +778,10 @@ def main():
     # Learning rate scaling (linear scaling rule)
     # Reference: Goyal et al. "Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour"
     # LR scales linearly with batch size: lr = base_lr * (batch_size / reference_batch_size)
+    # MIREX paper Section 3.3: "initial learning rate was set to 1.0 × 10−3"
     if args.lr is None:
-        if args.model_type == 'chordformer':
-            base_lr = config.BASE_LEARNING_RATE
+        if args.model_type in ['chordformer', 'mirex']:
+            base_lr = config.BASE_LEARNING_RATE  # 1e-3 per MIREX paper
             ref_batch = config.REFERENCE_BATCH_SIZE
             args.lr = base_lr * (args.batch_size / ref_batch)
             if args.batch_size != ref_batch:
