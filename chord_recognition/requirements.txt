@@ -1,19 +1,19 @@
 # Core deep learning
 torch>=2.9.1
-torchaudio>=2.0.0
-numpy>=1.21.0
+torchaudio>=2.9.0
+numpy>=2.4.0
 
 # Audio processing
-librosa>=0.10.0
+librosa>=0.11.0
 
 # Progress bars
-tqdm>=4.65.0
+tqdm>=4.67.0
 
 # Signal processing (for median filter in predict.py)
-scipy>=1.10.0
+scipy>=1.17.0
 
 # ONNX export (optional, for web deployment)
-onnx>=1.14.0
+onnx>=1.20.0
 
 # Evaluation metrics (mir_eval for WCSR - matches ChordFormer paper)
-mir_eval>=0.7.0
+mir_eval>=0.8.0
