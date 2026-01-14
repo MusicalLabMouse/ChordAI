@@ -82,44 +82,69 @@ def annotations_to_mir_eval_format(annotations):
     return intervals, labels
 
 
-def find_test_songs(test_dir):
+def find_test_songs(test_dir, num_songs=None, random_seed=42):
     """
-    Find all test songs (audio files with matching .lab files).
+    Find test songs (audio files with matching .lab files).
 
     Supports multiple directory structures:
     - Flat: test_dir/song.mp3, test_dir/song.lab
-    - Nested: test_dir/song/audio.mp3, test_dir/song/ground_truth.lab
+    - Nested: test_dir/song_folder/audio.mp3, test_dir/song_folder/*.lab
     - Isophonics: test_dir/artist/album/song.mp3 with separate annotations
 
     Args:
         test_dir: Path to test directory
+        num_songs: Number of random songs to select (None = all songs)
+        random_seed: Random seed for reproducibility
 
     Returns:
         List of (audio_path, lab_path) tuples
     """
+    import random
     test_dir = Path(test_dir)
     songs = []
 
     # Common audio extensions
     audio_exts = {'.mp3', '.wav', '.flac', '.m4a', '.ogg'}
 
-    # Find all audio files
-    audio_files = []
-    for ext in audio_exts:
-        audio_files.extend(test_dir.rglob(f'*{ext}'))
+    # First, check for subfolder structure (each subfolder = one song)
+    for subdir in test_dir.iterdir():
+        if subdir.is_dir():
+            # Find audio file in subfolder
+            audio_file = None
+            lab_file = None
 
-    for audio_path in audio_files:
-        # Try to find matching .lab file
-        lab_candidates = [
-            audio_path.with_suffix('.lab'),  # same name
-            audio_path.parent / 'ground_truth.lab',  # nested structure
-            audio_path.parent / f'{audio_path.stem}.lab',
-        ]
+            for f in subdir.iterdir():
+                if f.suffix.lower() in audio_exts and audio_file is None:
+                    audio_file = f
+                elif f.suffix.lower() == '.lab' and lab_file is None:
+                    lab_file = f
 
-        for lab_path in lab_candidates:
-            if lab_path.exists():
-                songs.append((audio_path, lab_path))
-                break
+            if audio_file and lab_file:
+                songs.append((audio_file, lab_file))
+
+    # If no subfolder structure found, try flat structure
+    if not songs:
+        audio_files = []
+        for ext in audio_exts:
+            audio_files.extend(test_dir.rglob(f'*{ext}'))
+
+        for audio_path in audio_files:
+            # Try to find matching .lab file
+            lab_candidates = [
+                audio_path.with_suffix('.lab'),  # same name
+                audio_path.parent / 'ground_truth.lab',  # nested structure
+                audio_path.parent / f'{audio_path.stem}.lab',
+            ]
+
+            for lab_path in lab_candidates:
+                if lab_path.exists():
+                    songs.append((audio_path, lab_path))
+                    break
+
+    # Randomly select subset if requested
+    if num_songs is not None and num_songs < len(songs):
+        random.seed(random_seed)
+        songs = random.sample(songs, num_songs)
 
     return songs
 
@@ -130,7 +155,9 @@ def evaluate_mirex_model(
     normalization_path,
     device='cuda',
     use_crf=True,
-    transition_penalty=1.0
+    transition_penalty=1.0,
+    num_songs=10,
+    random_seed=42
 ):
     """
     Evaluate MIREX model on a test dataset.
@@ -142,6 +169,8 @@ def evaluate_mirex_model(
         device: Device for inference
         use_crf: Whether to use CRF decoding
         transition_penalty: CRF transition penalty
+        num_songs: Number of random songs to evaluate (None = all)
+        random_seed: Random seed for song selection
 
     Returns:
         Dict of averaged WCSR metrics
@@ -159,8 +188,8 @@ def evaluate_mirex_model(
     with open(normalization_path, 'r') as f:
         normalization = json.load(f)
 
-    # Find test songs
-    songs = find_test_songs(test_dir)
+    # Find test songs (randomly sample if num_songs specified)
+    songs = find_test_songs(test_dir, num_songs=num_songs, random_seed=random_seed)
     print(f"Found {len(songs)} test songs")
 
     if not songs:
@@ -238,6 +267,10 @@ def main():
                         help='Disable CRF decoding')
     parser.add_argument('--transition_penalty', type=float, default=1.0,
                         help='CRF transition penalty')
+    parser.add_argument('--num_songs', type=int, default=10,
+                        help='Number of random songs to evaluate (default: 10, use 0 for all)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for song selection')
     parser.add_argument('--output', type=str, default=None,
                         help='Save results to JSON file')
 
@@ -262,13 +295,16 @@ def main():
         args.device = 'cpu'
 
     # Run evaluation
+    num_songs = args.num_songs if args.num_songs > 0 else None  # 0 means all songs
     metrics = evaluate_mirex_model(
         checkpoint_path=args.checkpoint,
         test_dir=args.test_dir,
         normalization_path=args.normalization,
         device=args.device,
         use_crf=not args.no_crf,
-        transition_penalty=args.transition_penalty
+        transition_penalty=args.transition_penalty,
+        num_songs=num_songs,
+        random_seed=args.seed
     )
 
     if metrics:
