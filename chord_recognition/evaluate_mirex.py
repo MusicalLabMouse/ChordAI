@@ -32,11 +32,15 @@ def normalize_chord_for_mir_eval(chord):
     """
     Normalize chord label to mir_eval compatible format.
 
-    mir_eval is strict about slash chords - the bass note must be
-    a chord tone. If not, we strip the bass note.
+    mir_eval expects specific quality names:
+    - "min" not "m" for minor
+    - "min7" not "m7" for minor 7th
+    - "maj7" not "M7" for major 7th
+
+    Also strips bass notes from slash chords since mir_eval is strict.
 
     Args:
-        chord: Chord label like "G:maj/A"
+        chord: Chord label like "G:maj/A" or "A:m7"
 
     Returns:
         Normalized chord label
@@ -44,14 +48,28 @@ def normalize_chord_for_mir_eval(chord):
     if chord == 'N' or not chord:
         return 'N'
 
-    # Handle slash chords
+    # Handle slash chords - strip bass note
     if '/' in chord:
-        main_chord, bass = chord.rsplit('/', 1)
+        chord, bass = chord.rsplit('/', 1)
 
-        # For simplicity, remove bass notes that cause mir_eval errors
-        # mir_eval will still evaluate the root and quality correctly
-        # This is a common practice in chord evaluation
-        return main_chord
+    # Normalize quality names for mir_eval
+    # mir_eval expects: maj, min, dim, aug, maj7, min7, 7, dim7, hdim7, etc.
+    # Order matters - check longer patterns first
+    quality_replacements = [
+        (':m13', ':min13'),
+        (':m11', ':min11'),
+        (':m9', ':min9'),
+        (':m7', ':min7'),
+        (':M7', ':maj7'),
+        (':M9', ':maj9'),
+        (':M', ':maj'),
+        (':m', ':min'),  # Must be last among :m* patterns
+    ]
+
+    for old, new in quality_replacements:
+        if old in chord:
+            chord = chord.replace(old, new)
+            break
 
     return chord
 
